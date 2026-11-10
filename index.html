@@ -367,6 +367,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--chalk)}
   </main>
 </div>
 
+<script src="config.js"></script>
 <script>
 (() => {
 'use strict';
@@ -831,11 +832,22 @@ gridEl.addEventListener('click', e => {
 });
 
 /* ---------- Google 3D ---------- */
-const G = { key: '', state: 'off', error: '', code: '', msg: '', lib: null, maps: { a: null, b: null }, driver: 'b', applying: 0, syncQ: false, pan: { along: 0, cross: 0, dz: 0 }, loadStarted: false, built: false, builtAt: 0, dismissed: false, leveling: null };
+const G = { key: '', state: 'off', error: '', code: '', msg: '', lib: null, maps: { a: null, b: null }, driver: 'b', applying: 0, syncQ: false, pan: { along: 0, cross: 0, dz: 0 }, loadStarted: false, built: false, builtAt: 0, dismissed: false, leveling: null, keySource: '' };
 function readKey() { try { return localStorage.getItem(GKEY) || ''; } catch (_) { return ''; } }
+/* Optional key the site owner puts in config.js. A visitor's own saved key always wins. */
+function sharedKey() {
+  const k = typeof window.STADIUM_STACK_GOOGLE_KEY === 'string' ? window.STADIUM_STACK_GOOGLE_KEY.trim() : '';
+  return k.length >= 20 && !/\s/.test(k) ? k : '';
+}
+function pickKey() {
+  const own = readKey();
+  if (own) { G.key = own; G.keySource = 'own'; }
+  else if (sharedKey()) { G.key = sharedKey(); G.keySource = 'shared'; }
+  else { G.key = ''; G.keySource = ''; }
+}
 function storeKey(k) {
-  G.key = k;
   try { if (k) localStorage.setItem(GKEY, k); else localStorage.removeItem(GKEY); } catch (_) { /* key lasts for this visit only */ }
+  if (k) { G.key = k; G.keySource = 'own'; } else pickKey();
 }
 /* Field height above sea level in Google's 3D model: one you set by clicking, else measured from Google's 3D, else elevation data. */
 const fieldZ = st => Number.isFinite(S.levels[st.id]) ? S.levels[st.id]
@@ -1059,7 +1071,10 @@ function renderSetup() {
     : SETUP[k];
   setupCard.classList.toggle('err', k !== 'nokey');
   setupTitle.textContent = copy.title;
-  setupMsg.textContent = copy.msg + (k === 'init' && G.msg ? ` (${G.msg})` : '');
+  const shared = k === 'google' && G.keySource === 'shared';
+  setupMsg.textContent = shared
+    ? `This site’s shared key isn’t working right now. ${GOOGLE_FIX[G.code] || ''} Paste your own free key below to keep going.`.replace(/\s+/g, ' ')
+    : copy.msg + (k === 'init' && G.msg ? ` (${G.msg})` : '');
   setupSteps.hidden = k !== 'nokey';
   keyForm.hidden = k !== 'nokey' && k !== 'google';
   const fileTip = k === 'google' && location.protocol === 'file:';
@@ -1068,7 +1083,7 @@ function renderSetup() {
   setupRaw.hidden = !(k === 'google' && (G.msg || G.code));
   setupRaw.textContent = G.msg || G.code || '';
   setupDismiss.hidden = !(k === 'google' && G.built);
-  setupForget.hidden = !G.key;
+  setupForget.hidden = G.keySource !== 'own';
 }
 
 keyForm.addEventListener('submit', e => {
@@ -1083,12 +1098,13 @@ keyForm.addEventListener('submit', e => {
 });
 function forgetKey() {
   storeKey('');
-  S.src = 'sat';
+  if (!G.key) S.src = 'sat';
   if (G.loadStarted) { saveNow(); location.reload(); return; }
   G.state = 'off';
-  setSrc('sat');
+  setSrc(S.src);
 }
-$('forgetKey').addEventListener('click', forgetKey);
+const forgetBtn = $('forgetKey');
+forgetBtn.addEventListener('click', forgetKey);
 setupForget.addEventListener('click', forgetKey);
 setupDismiss.addEventListener('click', () => { G.dismissed = true; refreshStage(); });
 camRow.addEventListener('click', e => {
@@ -1258,6 +1274,7 @@ function refreshStage() {
   if (G.leveling && !show3d) { G.leveling = null; levelBanner.hidden = true; }
   swipeEl.hidden = S.mode !== 'swipe' || setup || (want3d && !show3d) || !!G.leveling;
   camRow.hidden = !(S.src === 'g3d' && (G.built || G.state === 'loading'));
+  forgetBtn.hidden = G.keySource !== 'own';
   linesRow.hidden = want3d;
   hint.textContent = (want3d && HINTS3D[S.mode]) || HINTS[S.mode];
   if (show3d) visual3d();
@@ -1602,7 +1619,7 @@ function removeCustom(id) {
 }
 
 /* ---------- Start ---------- */
-G.key = readKey();
+pickKey();
 fillSelects();
 linesBox.checked = S.lines;
 positionSwipe();
