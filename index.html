@@ -1,0 +1,1618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stadium Stack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Satellite and Google 3D views of the world's big stadiums, every field pinned to the same spot at true scale.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: broadcast booth. The map stage fills the window; a narrow control rail runs down the left and drops below the stage on phones. */
+:root{
+  --night:#0b0f12;   /* stage and page */
+  --rail:#11171b;    /* control rail */
+  --well:#182026;    /* cards and inputs */
+  --line:#26313a;    /* hairlines */
+  --chalk:#e9ede7;   /* text and field lines */
+  --dim:#8f9ba1;     /* secondary text */
+  --a:#4c8dff;       /* stadium A: line-of-scrimmage blue */
+  --b:#ffd21f;       /* stadium B: first-down yellow */
+  --warn:#ff8a5c;    /* problems */
+  --glass:rgba(11,15,18,.8);
+  --display:"Big Shoulders Display","Arial Narrow","Roboto Condensed",Impact,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--chalk);font:400 15px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+
+.app{display:grid;grid-template-columns:340px minmax(0,1fr);height:100vh;height:100dvh}
+.rail{overflow-y:auto;background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:20px;padding-block:22px 18px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:18px}
+.stage{position:relative;overflow:hidden;background:var(--night);min-width:0;min-height:0}
+
+/* Rail */
+.brand h1{margin:0;font:800 40px/.9 var(--display);letter-spacing:.015em;text-transform:uppercase}
+.brand p{margin:9px 0 0;color:var(--dim);max-width:34ch;text-wrap:pretty}
+.hash{height:9px;margin-top:14px;background:repeating-linear-gradient(90deg,var(--chalk) 0 2px,transparent 2px 15px);opacity:.28}
+.label{margin:0 0 9px;font:600 11.5px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.label.sub{margin-top:16px}
+.tag{flex:none;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:5px;font:800 17px/1 var(--display);color:var(--night)}
+.tag.a{background:var(--a)}
+.tag.b{background:var(--b)}
+
+.pick{display:grid;grid-template-columns:minmax(0,1fr) 42px;gap:8px}
+.layer{grid-column:1;display:flex;align-items:center;gap:10px;min-width:0;padding-left:8px;background:var(--well);border:1px solid var(--line);border-radius:8px}
+.layer:focus-within{border-color:var(--dim)}
+.layer select{flex:1;min-width:0;appearance:none;-webkit-appearance:none;border:0;padding:10px 30px 10px 0;font-weight:500;text-overflow:ellipsis;cursor:pointer;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238f9ba1' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center/10px 6px}
+.layer select:focus-visible{outline:none}
+.layer option,.layer optgroup{background:var(--well);color:var(--chalk)}
+#swap{grid-column:2;grid-row:1/span 2;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--well);cursor:pointer}
+#swap:hover{border-color:var(--dim)}
+
+.modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;background:var(--well);border:1px solid var(--line);border-radius:9px}
+.modes.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.modes button{border:0;border-radius:6px;background:transparent;padding:9px 0 7px;font:700 16px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);cursor:pointer}
+.modes button:hover{color:var(--chalk)}
+.modes button[aria-checked="true"]{background:var(--chalk);color:var(--night)}
+.amount{display:grid;grid-template-columns:auto minmax(0,1fr) 7ch;align-items:center;gap:12px;margin-top:14px}
+.amount label{font:600 11.5px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.amount output{font:500 13px/1 var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+input[type=range]{width:100%;margin:0;accent-color:var(--chalk)}
+.hint{margin:10px 0 0;font-size:13.5px;color:var(--dim);text-wrap:pretty}
+.check{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:14px;cursor:pointer}
+.check input{width:16px;height:16px;margin:0;accent-color:var(--chalk)}
+.cam .label{margin:16px 0 9px}
+
+.cards{display:grid;gap:10px}
+.card{display:grid;gap:10px;min-width:0;padding:14px;background:var(--well);border:1px solid var(--line);border-radius:10px}
+.card-head{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.card-head>div{min-width:0}
+.card h2{margin:0;font:800 23px/1 var(--display);letter-spacing:.015em;text-transform:uppercase;text-wrap:balance;overflow-wrap:anywhere}
+.meta{margin:4px 0 0;font-size:13.5px;color:var(--dim)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;margin:0}
+.stats dt{font:600 11px/1.3 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.stats dd{margin:3px 0 0;font:500 15px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.fact{margin:0;font-size:14px}
+.src{margin:0;font-size:12.5px;color:var(--dim)}
+.earth{justify-self:start;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:13.5px;font-weight:500;color:var(--chalk);text-decoration:none}
+.earth:hover{border-color:var(--dim)}
+.tune summary{cursor:pointer;font-size:13.5px;color:var(--dim)}
+.tune summary:hover{color:var(--chalk)}
+.tune-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cam .tune-row{margin-top:0}
+.pill{border:1px solid var(--line);border-radius:999px;background:transparent;padding:5px 11px;font-size:13px;cursor:pointer}
+.pill:hover{border-color:var(--dim)}
+.pill[aria-pressed="true"]{background:var(--chalk);border-color:var(--chalk);color:var(--night)}
+.tune-read{margin:9px 0 0;font:500 12px/1.4 var(--mono);color:var(--dim)}
+.remove{justify-self:start;border:0;background:none;padding:0;font-size:13px;color:var(--dim);text-decoration:underline;cursor:pointer}
+.cam .remove{margin-top:12px}
+
+.add summary{cursor:pointer;font:700 17px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.add-form{display:flex;gap:6px;margin-top:12px}
+.add-form input{flex:1;min-width:0;padding:9px 10px;background:var(--well);border:1px solid var(--line);border-radius:8px}
+.btn{border:0;border-radius:8px;background:var(--chalk);color:var(--night);font-weight:600;padding:0 14px;cursor:pointer}
+.results{display:grid;gap:4px;margin:10px 0 0;padding:0;list-style:none}
+.results button{width:100%;text-align:left;padding:8px 10px;background:transparent;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.results button:hover{border-color:var(--dim)}
+.results small{display:block;font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.credit{margin-top:auto;font-size:12px;line-height:1.5;color:var(--dim)}
+
+/* Stage */
+#canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#canvas.dragging{cursor:grabbing}
+#canvas.adjusting{cursor:move}
+.g3d{position:absolute;inset:0;z-index:1;background:var(--night)}
+.g3d-layer{position:absolute;inset:0}
+.g3d-layer>*{display:block;width:100%;height:100%}
+.hud-top{position:absolute;z-index:3;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
+.chip{display:flex;align-items:center;gap:9px;min-width:0;max-width:48%;padding:6px 12px 6px 6px;border-radius:9px;background:var(--glass);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .2s}
+.chip .nm{min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .cp{font:500 12px var(--mono);color:var(--dim);white-space:nowrap}
+.chip.off{opacity:.35}
+.swipe{position:absolute;z-index:2;top:0;bottom:0;left:50%;width:0;pointer-events:none}
+.swipe::before{content:"";position:absolute;top:0;bottom:0;left:-1px;width:2px;background:var(--chalk);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.grip{position:absolute;top:72%;left:0;width:42px;height:42px;transform:translate(-50%,-50%);display:grid;place-items:center;border:0;border-radius:50%;background:var(--chalk);color:var(--night);box-shadow:0 3px 14px rgba(0,0,0,.45);pointer-events:auto;touch-action:none;cursor:ew-resize}
+.hud-bl{position:absolute;z-index:3;left:12px;bottom:28px;display:flex;align-items:flex-end;gap:10px;pointer-events:none}
+.compass{position:relative;width:52px;height:52px;border-radius:50%;background:var(--glass);pointer-events:auto}
+.compass svg{position:absolute;inset:0}
+.c-ring{fill:none;stroke:var(--line)}
+.c-a{fill:var(--a)}
+.c-b{fill:var(--b)}
+.c-hub{fill:var(--chalk)}
+.scale{display:grid;gap:6px;padding:8px 10px;border-radius:9px;background:var(--glass)}
+.bar{display:flex;align-items:center;gap:8px;font:500 12px/1 var(--mono);white-space:nowrap}
+.bar i{display:block;height:6px;border:1.5px solid var(--chalk);border-top:0}
+.hud-br{position:absolute;z-index:3;right:12px;bottom:30px;display:grid;gap:6px}
+.zb{display:grid;place-items:center;width:40px;height:40px;border:1px solid var(--line);border-radius:9px;background:var(--glass);font:600 19px/1 var(--body);cursor:pointer}
+.zb:hover{border-color:var(--dim)}
+.zb.fit{font:700 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.banner{position:absolute;z-index:4;top:96px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);padding:7px 7px 7px 8px;border-radius:10px;background:var(--chalk);color:var(--night);font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.banner button{border:0;border-radius:7px;background:var(--night);color:var(--chalk);padding:6px 12px;font-weight:600;cursor:pointer}
+.status{position:absolute;z-index:4;left:50%;top:58px;transform:translateX(-50%);padding:5px 12px;border-radius:999px;background:var(--glass);font:500 12px var(--mono);color:var(--dim);white-space:nowrap;pointer-events:none}
+.attrib{position:absolute;z-index:3;right:0;bottom:0;max-width:100%;padding:3px 8px;border-top-left-radius:6px;background:rgba(11,15,18,.65);font-size:10.5px;color:rgba(233,237,231,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+
+/* Problems and setup */
+.notice{position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:min(calc(100% - 32px),430px);display:grid;gap:10px;padding:20px;border:1px solid var(--line);border-top:3px solid var(--warn);border-radius:12px;background:var(--rail);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.notice h2{margin:0;font:800 24px/1.05 var(--display);letter-spacing:.015em;text-transform:uppercase}
+.notice p{margin:0;color:var(--dim);text-wrap:pretty}
+.notice .btn{justify-self:start;padding:8px 14px}
+.setup{position:absolute;inset:0;z-index:5;overflow-y:auto;display:grid;place-items:center;padding:24px 18px;background:var(--night)}
+.setup-card{width:min(100%,540px);display:grid;gap:14px;padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--rail)}
+.setup-card.err{border-top:3px solid var(--warn)}
+.setup-card h2{margin:0;font:800 30px/1 var(--display);letter-spacing:.015em;text-transform:uppercase;text-wrap:balance}
+.setup-card p{margin:0;color:var(--dim);text-wrap:pretty}
+.setup-card ol{display:grid;gap:7px;margin:0;padding-left:22px}
+.setup-card a{color:var(--chalk)}
+.setup-card code{padding:1px 5px;border-radius:4px;background:var(--well);font:500 12.5px var(--mono);color:var(--chalk)}
+.tip{display:grid;gap:9px;padding:12px;border-radius:8px;background:var(--well)}
+.setup-card .tip p{color:var(--chalk)}
+.cmd{display:flex;align-items:center;gap:6px;min-width:0}
+.setup-card .cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;padding:8px 10px;border-radius:6px;background:var(--night)}
+.copy{flex:none;border:1px solid var(--line);border-radius:6px;background:transparent;padding:7px 11px;font-size:12.5px;cursor:pointer}
+.copy:hover{border-color:var(--dim)}
+.gerr{margin:0;max-height:130px;overflow:auto;padding:10px 12px;border-radius:8px;background:var(--night);font:500 11.5px/1.5 var(--mono);color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
+.setup-actions{display:flex;flex-wrap:wrap;gap:18px}
+.key-form{display:flex;gap:6px}
+.key-form input{flex:1;min-width:0;padding:10px;background:var(--well);border:1px solid var(--line);border-radius:8px;font-family:var(--mono);font-size:13px}
+.key-form .btn{padding:0 16px}
+
+/* Lineup */
+.grid{position:absolute;z-index:2;inset:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));grid-auto-rows:max-content;align-content:start;gap:12px;padding:18px 18px 34px;background:var(--night)}
+.grid-note{grid-column:1/-1;margin:0;font-size:13.5px;color:var(--dim)}
+.ghead{grid-column:1/-1;margin:10px 0 -2px;font:800 20px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cell{position:relative;min-width:0;overflow:hidden;background:var(--well);border:1px solid var(--line);border-radius:10px}
+.cell.is-a{border-color:var(--a);box-shadow:0 0 0 1px var(--a)}
+.cell.is-b{border-color:var(--b);box-shadow:0 0 0 1px var(--b)}
+.cell-main{display:block;width:100%;padding:0;border:0;background:none;cursor:pointer}
+.cell canvas{display:block;width:100%;aspect-ratio:4/3;background:var(--night)}
+.cell-cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0;padding:8px 10px 9px;font-size:13.5px}
+.cell-cap b{min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-cap span{font:500 12px var(--mono);color:var(--dim);white-space:nowrap}
+.cell-a{position:absolute;top:8px;right:8px;width:30px;height:30px;border:0;border-radius:6px;background:var(--glass);font:800 15px/1 var(--display);cursor:pointer;opacity:0;transition:opacity .15s}
+.cell:hover .cell-a,.cell-a:focus-visible,.cell.is-a .cell-a{opacity:1}
+.cell.is-a .cell-a{background:var(--a);color:var(--night)}
+@media (hover:none){.cell-a{opacity:1}}
+
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr);height:auto}
+  .stage{order:-1;height:66vh;height:66svh;min-height:340px}
+  .rail{overflow:visible;border-right:0;border-top:1px solid var(--line);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .brand h1{font-size:34px}
+}
+@media (max-width:560px){.chip .cp{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="Controls">
+    <header class="brand">
+      <h1>Stadium Stack</h1>
+      <p>Satellite and Google 3D views of the big bowls, every field pinned to the same spot at true scale.</p>
+      <div class="hash" aria-hidden="true"></div>
+    </header>
+
+    <section aria-labelledby="pickLabel">
+      <h2 class="label" id="pickLabel">Compare</h2>
+      <div class="pick">
+        <label class="layer"><span class="tag a">A</span><select id="selA" aria-label="Stadium A"></select></label>
+        <button id="swap" type="button" aria-label="Swap A and B" title="Swap A and B"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 2v13M6 2 2.5 5.5M6 2l3.5 3.5M12 16V3m0 13-3.5-3.5M12 16l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <label class="layer"><span class="tag b">B</span><select id="selB" aria-label="Stadium B"></select></label>
+      </div>
+    </section>
+
+    <section aria-labelledby="viewLabel">
+      <h2 class="label" id="viewLabel">View</h2>
+      <div class="modes" role="radiogroup" aria-labelledby="viewLabel">
+        <button type="button" role="radio" data-mode="swipe" aria-checked="true">Swipe</button>
+        <button type="button" role="radio" data-mode="fade" aria-checked="false">Fade</button>
+        <button type="button" role="radio" data-mode="blink" aria-checked="false">Blink</button>
+        <button type="button" role="radio" data-mode="grid" aria-checked="false">Lineup</button>
+      </div>
+      <h2 class="label sub" id="srcLabel">Imagery</h2>
+      <div class="modes two" id="srcGroup" role="radiogroup" aria-labelledby="srcLabel">
+        <button type="button" role="radio" data-src="sat" aria-checked="true">Satellite</button>
+        <button type="button" role="radio" data-src="g3d" aria-checked="false">Google 3D</button>
+      </div>
+      <div class="amount">
+        <label for="amount" id="amountLabel">Divider</label>
+        <input type="range" id="amount" min="0" max="100" value="50">
+        <output id="amountOut" for="amount">50%</output>
+      </div>
+      <p class="hint" id="hint"></p>
+      <label class="check" id="linesRow"><input type="checkbox" id="lines" checked> Draw field outlines</label>
+      <div class="cam" id="camRow" hidden>
+        <h2 class="label" id="camLabel">Camera</h2>
+        <div class="tune-row" role="group" aria-labelledby="camLabel">
+          <button class="pill" type="button" data-cam="sideline">Sideline</button>
+          <button class="pill" type="button" data-cam="endzone">End zone</button>
+          <button class="pill" type="button" data-cam="overhead">Overhead</button>
+        </div>
+        <button class="remove" type="button" id="forgetKey">Remove Google key</button>
+      </div>
+    </section>
+
+    <section class="cards" id="cards" aria-label="Selected stadiums">
+      <article class="card" aria-label="Stadium A">
+        <div class="card-head"><span class="tag a">A</span><div><h2 id="nameA"></h2><p class="meta" id="metaA"></p></div></div>
+        <dl class="stats">
+          <div><dt>Listed capacity</dt><dd id="capA"></dd></div>
+          <div><dt>Field runs</dt><dd id="axisA"></dd></div>
+        </dl>
+        <p class="fact" id="factA"></p>
+        <p class="src" id="srcA"></p>
+        <a class="earth" id="earthA" href="https://earth.google.com/web/" target="_blank" rel="noopener">Open in Google Earth 3D <span aria-hidden="true">↗</span></a>
+        <details class="tune">
+          <summary>Fine-tune alignment</summary>
+          <div class="tune-row">
+            <button class="pill" type="button" data-act="rot" data-v="1" data-w="a" title="Rotate counterclockwise">↺ 1°</button>
+            <button class="pill" type="button" data-act="rot" data-v="-1" data-w="a" title="Rotate clockwise">↻ 1°</button>
+            <button class="pill" type="button" data-act="rot" data-v="90" data-w="a">Turn 90°</button>
+            <button class="pill" type="button" data-act="move" data-w="a" aria-pressed="false">Drag to move</button>
+            <button class="pill lvl" type="button" data-act="level" data-w="a" hidden>Set field level</button>
+            <button class="pill" type="button" data-act="reset" data-w="a">Reset</button>
+          </div>
+          <p class="tune-read" id="readA"></p>
+        </details>
+        <button class="remove" type="button" data-act="remove" data-w="a" id="removeA" hidden>Remove from list</button>
+      </article>
+      <article class="card" aria-label="Stadium B">
+        <div class="card-head"><span class="tag b">B</span><div><h2 id="nameB"></h2><p class="meta" id="metaB"></p></div></div>
+        <dl class="stats">
+          <div><dt>Listed capacity</dt><dd id="capB"></dd></div>
+          <div><dt>Field runs</dt><dd id="axisB"></dd></div>
+        </dl>
+        <p class="fact" id="factB"></p>
+        <p class="src" id="srcB"></p>
+        <a class="earth" id="earthB" href="https://earth.google.com/web/" target="_blank" rel="noopener">Open in Google Earth 3D <span aria-hidden="true">↗</span></a>
+        <details class="tune">
+          <summary>Fine-tune alignment</summary>
+          <div class="tune-row">
+            <button class="pill" type="button" data-act="rot" data-v="1" data-w="b" title="Rotate counterclockwise">↺ 1°</button>
+            <button class="pill" type="button" data-act="rot" data-v="-1" data-w="b" title="Rotate clockwise">↻ 1°</button>
+            <button class="pill" type="button" data-act="rot" data-v="90" data-w="b">Turn 90°</button>
+            <button class="pill" type="button" data-act="move" data-w="b" aria-pressed="false">Drag to move</button>
+            <button class="pill lvl" type="button" data-act="level" data-w="b" hidden>Set field level</button>
+            <button class="pill" type="button" data-act="reset" data-w="b">Reset</button>
+          </div>
+          <p class="tune-read" id="readB"></p>
+        </details>
+        <button class="remove" type="button" data-act="remove" data-w="b" id="removeB" hidden>Remove from list</button>
+      </article>
+    </section>
+
+    <details class="add" id="addBox">
+      <summary>Add any stadium</summary>
+      <p class="hint">Searches OpenStreetMap, finds the field outline, and adds the stadium to your list as B.</p>
+      <form class="add-form" id="addForm" autocomplete="off">
+        <input id="addQ" type="search" placeholder="e.g. Husky Stadium, Seattle" aria-label="Stadium name and city">
+        <button class="btn" type="submit">Search</button>
+      </form>
+      <ul class="results" id="addResults"></ul>
+      <p class="hint" id="addMsg" role="status"></p>
+    </details>
+
+    <footer class="credit">Satellite: Esri World Imagery (Esri, Maxar, Earthstar Geographics, and the GIS User Community). 3D: Google. Field outlines: © OpenStreetMap contributors. Ground heights: Copernicus DEM via Open-Meteo. Capacities are listed figures and shift with renovations.</footer>
+  </aside>
+
+  <main class="stage" id="stage">
+    <canvas id="canvas" tabindex="0"></canvas>
+    <div class="g3d" id="g3d" hidden>
+      <div class="g3d-layer" id="g3dA"></div>
+      <div class="g3d-layer" id="g3dB"></div>
+    </div>
+    <div class="grid" id="grid" hidden></div>
+    <div class="hud-top" id="hudTop">
+      <div class="chip" id="chipA"><span class="tag a">A</span><span class="nm"></span><span class="cp"></span></div>
+      <div class="chip" id="chipB"><span class="tag b">B</span><span class="nm"></span><span class="cp"></span></div>
+    </div>
+    <div class="swipe" id="swipe"><button class="grip" id="grip" type="button" aria-label="Divider between A and B. Use arrow keys to move it."><svg width="20" height="12" viewBox="0 0 20 12" aria-hidden="true"><path d="M6 1 1 6l5 5M14 1l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    <div class="hud-bl" id="hudBl">
+      <div class="compass" title="North for A (blue) and B (yellow)">
+        <svg viewBox="0 0 52 52" aria-hidden="true">
+          <circle class="c-ring" cx="26" cy="26" r="24.5"/>
+          <g id="needleA"><path class="c-a" d="M26 5 30.5 26h-9Z"/></g>
+          <g id="needleB"><path class="c-b" d="M26 9 29.5 26h-7Z"/></g>
+          <circle class="c-hub" cx="26" cy="26" r="3"/>
+        </svg>
+      </div>
+      <div class="scale" aria-hidden="true">
+        <div class="bar"><i id="barM"></i><span id="barMl"></span></div>
+        <div class="bar"><i id="barY"></i><span id="barYl"></span></div>
+      </div>
+    </div>
+    <div class="hud-br" id="hudBr">
+      <button class="zb" id="zin" type="button" aria-label="Zoom in">+</button>
+      <button class="zb" id="zout" type="button" aria-label="Zoom out">−</button>
+      <button class="zb fit" id="zfit" type="button" aria-label="Zoom to fit">Fit</button>
+    </div>
+    <div class="banner" id="banner" hidden><span class="tag a" id="bannerTag">A</span><span>Drag the imagery until its field sits in the outline.</span><button type="button" id="bannerDone">Done</button></div>
+    <div class="banner" id="levelBanner" hidden><span class="tag a" id="levelTag">A</span><span id="levelText">Click the middle of the field.</span><button type="button" id="levelCancel">Cancel</button></div>
+    <div class="status" id="status" hidden></div>
+    <div class="notice" id="notice" role="alert" hidden>
+      <h2>Satellite imagery isn’t loading</h2>
+      <p id="noticeText"></p>
+      <button class="btn" type="button" id="noticeRetry">Try again</button>
+    </div>
+    <div class="setup" id="setup" hidden>
+      <div class="setup-card" id="setupCard">
+        <h2 id="setupTitle">Google 3D needs a key</h2>
+        <p id="setupMsg"></p>
+        <ol id="setupSteps">
+          <li>Open <a href="https://developers.google.com/maps/demo-key" target="_blank" rel="noopener">developers.google.com/maps/demo-key</a> and sign in with a personal Gmail account. School and work Google accounts can’t get one.</li>
+          <li>Click <b>Get a Demo Key</b>, accept the terms, and copy the key.</li>
+          <li>Paste it below. It’s saved only in this browser.</li>
+        </ol>
+        <div class="tip" id="setupTip" hidden></div>
+        <pre class="gerr" id="setupRaw" hidden></pre>
+        <form class="key-form" id="keyForm" autocomplete="off">
+          <input id="keyInput" type="password" spellcheck="false" placeholder="Paste your Google Maps key" aria-label="Google Maps API key">
+          <button class="btn" type="submit">Use key</button>
+        </form>
+        <p>No key? Each stadium card has an <b>Open in Google Earth 3D</b> link that uses the same camera angle and distance.</p>
+        <div class="setup-actions">
+          <button class="remove" type="button" id="setupDismiss" hidden>Show the map anyway</button>
+          <button class="remove" type="button" id="setupForget" hidden>Remove saved key</button>
+        </div>
+      </div>
+    </div>
+    <div class="attrib" id="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Fields © OpenStreetMap</div>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Constants ---------- */
+const DEG = Math.PI / 180;
+const EARTH = 6378137;              // Web Mercator sphere radius, m
+const TS = 256;                     // tile size, px
+const MAXZ = 19;
+const FIT_SPAN = 420;               // meters across the stage's short side at "Fit"
+const AF_FIELD = [109.73, 48.77];   // 120 yd x 53 1/3 yd, end zones included
+const SOC_FIELD = [105, 68];
+const ZERO = { du: 0, dv: 0, dr: 0 };
+const MODES = ['swipe', 'fade', 'blink', 'grid'];
+const KEY = 'stadium-stack/v1', GKEY = 'stadium-stack/gkey', EKEY = 'stadium-stack/elev';
+const tileUrl = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+
+/* Camera presets for Google 3D and Google Earth. rel is the camera heading measured from the field's long axis. */
+const PRESETS = {
+  sideline: { rel: 90, tilt: 60, range: 650 },
+  endzone: { rel: 0, tilt: 60, range: 650 },
+  overhead: { rel: 90, tilt: 0, range: 950 },
+};
+const CAM_EVENTS = ['gmp-centerchange', 'gmp-headingchange', 'gmp-tiltchange', 'gmp-rangechange'];
+
+const GROUPS = [
+  ['college', 'College football'],
+  ['nfl', 'NFL'],
+  ['world', 'World football'],
+  ['other', 'Other giants'],
+  ['custom', 'Your stadiums'],
+];
+
+const NOTES = {
+  pitch: 'Lined up on the field outline from OpenStreetMap.',
+  roof: 'The field is under a roof, so this is lined up on the building outline, and the 3D camera aims at ground level beside the stadium. Either could be off by a few meters.',
+  dome: 'A round dome hides the field, so its direction is a best guess and the 3D camera aims at ground level beside the stadium.',
+  oval: 'Lined up on the long axis of the oval.',
+  round: 'The ground is nearly round, so the direction is approximate.',
+  arena: 'Lined up on the stadium outline.',
+  cpitch: 'Lined up on the field outline from OpenStreetMap.',
+  cstadium: 'OpenStreetMap has no field outline here, so this is lined up on the stadium outline.',
+  cpoint: 'OpenStreetMap has no field or stadium outline here. Use Fine-tune to line it up.',
+};
+
+/* Field centers and long-axis bearings (degrees clockwise from north) come from OpenStreetMap
+   field polygons, measured with a minimum-area bounding rectangle. f: af = American football,
+   soc = association football, oval = cricket/Aussie rules, arena = no standard field.
+   el: rough field height above sea level in meters, used until Open-Meteo answers.
+   fz: field height measured in Google's 3D model (for roofed stadiums: ground beside it, less any published field depth). */
+const STADIUMS = [
+  { id: 'michigan', name: 'Michigan Stadium', city: 'Ann Arbor, MI', g: 'college', cap: 107601, open: 1927, lat: 42.26588, lon: -83.74873, brg: 179.2, f: 'af', src: 'pitch', el: 245, fz: 255.7, fact: 'About three-quarters of the bowl sits below street level.' },
+  { id: 'beaver', name: 'Beaver Stadium', city: 'State College, PA', g: 'college', cap: 106572, open: 1960, lat: 40.81219, lon: -77.85611, brg: 135.0, f: 'af', src: 'pitch', el: 355, fz: 352.0 },
+  { id: 'ohio', name: 'Ohio Stadium', city: 'Columbus, OH', g: 'college', cap: 102780, open: 1922, lat: 40.00166, lon: -83.01974, brg: 7.0, f: 'af', src: 'pitch', el: 218, fz: 215.4, fact: 'The Horseshoe.' },
+  { id: 'kyle', name: 'Kyle Field', city: 'College Station, TX', g: 'college', cap: 102733, open: 1927, lat: 30.60988, lon: -96.34038, brg: 141.4, f: 'af', src: 'pitch', el: 100, fz: 103.4 },
+  { id: 'tiger', name: 'Tiger Stadium', city: 'Baton Rouge, LA', g: 'college', cap: 102321, open: 1924, lat: 30.41203, lon: -91.18380, brg: 157.1, f: 'af', src: 'pitch', el: 15, fz: 7.2, fact: 'Death Valley.' },
+  { id: 'neyland', name: 'Neyland Stadium', city: 'Knoxville, TN', g: 'college', cap: 101915, open: 1921, lat: 35.95499, lon: -83.92499, brg: 143.5, f: 'af', src: 'pitch', el: 262, fz: 262.4 },
+  { id: 'dkr', name: 'DKR–Texas Memorial Stadium', city: 'Austin, TX', g: 'college', cap: 100119, open: 1924, lat: 30.28366, lon: -97.73254, brg: 5.0, f: 'af', src: 'pitch', el: 165, fz: 161.1 },
+  { id: 'bryantdenny', name: 'Bryant–Denny Stadium', city: 'Tuscaloosa, AL', g: 'college', cap: 100077, open: 1929, lat: 33.20766, lon: -87.55046, brg: 3.4, f: 'af', src: 'pitch', el: 68, fz: 67.1 },
+  { id: 'sanford', name: 'Sanford Stadium', city: 'Athens, GA', g: 'college', cap: 93033, open: 1929, lat: 33.94980, lon: -83.37336, brg: 115.6, f: 'af', src: 'pitch', el: 205, fz: 186.4, fact: 'Privet hedges ring the field.' },
+  { id: 'rosebowl', name: 'Rose Bowl', city: 'Pasadena, CA', g: 'college', cap: 89702, open: 1922, lat: 34.16132, lon: -118.16763, brg: 172.7, f: 'af', src: 'pitch', el: 250, fz: 243.0, fact: 'Hosted the 1994 World Cup final.' },
+  { id: 'notredame', name: 'Notre Dame Stadium', city: 'Notre Dame, IN', g: 'college', cap: 77622, open: 1930, lat: 41.69840, lon: -86.23392, brg: 179.5, f: 'af', src: 'pitch', el: 222, fz: 219.1 },
+  { id: 'coliseum', name: 'LA Memorial Coliseum', city: 'Los Angeles, CA', g: 'college', cap: 77500, open: 1923, lat: 34.01405, lon: -118.28805, brg: 89.9, f: 'af', src: 'pitch', el: 58, fz: 41.2, fact: 'Olympic stadium in 1932 and 1984, and again for 2028.' },
+  { id: 'spartan', name: 'Spartan Stadium', city: 'East Lansing, MI', g: 'college', cap: 75005, open: 1923, lat: 42.72817, lon: -84.48486, brg: 0.6, f: 'af', src: 'pitch', el: 262, fz: 255.0 },
+
+  { id: 'metlife', name: 'MetLife Stadium', city: 'East Rutherford, NJ', g: 'nfl', cap: 82500, open: 2010, lat: 40.81353, lon: -74.07436, brg: 166.5, f: 'af', src: 'pitch', el: 3, fz: 2.4, fact: 'Site of the 2026 World Cup final.' },
+  { id: 'lambeau', name: 'Lambeau Field', city: 'Green Bay, WI', g: 'nfl', cap: 81441, open: 1957, lat: 44.50133, lon: -88.06222, brg: 179.8, f: 'af', src: 'pitch', el: 200, fz: 188.9 },
+  { id: 'att', name: 'AT&T Stadium', city: 'Arlington, TX', g: 'nfl', cap: 80000, open: 2009, lat: 32.74784, lon: -97.09284, brg: 68.9, f: 'af', src: 'pitch', el: 170, fz: 171.9, fact: 'Expands past 100,000. The 2010 NBA All-Star Game drew 108,713.' },
+  { id: 'arrowhead', name: 'Arrowhead Stadium', city: 'Kansas City, MO', g: 'nfl', cap: 76416, open: 1972, lat: 39.04893, lon: -94.48400, brg: 136.8, f: 'af', src: 'pitch', el: 250, fz: 257.1 },
+  { id: 'superdome', name: 'Caesars Superdome', city: 'New Orleans, LA', g: 'nfl', cap: 73208, open: 1975, lat: 29.95106, lon: -90.08108, brg: 30.0, f: 'af', src: 'dome', el: 2, fz: 0.4, fact: 'Encloses about 125 million cubic feet under one roof.' },
+  { id: 'mercedes', name: 'Mercedes-Benz Stadium', city: 'Atlanta, GA', g: 'nfl', cap: 71000, open: 2017, lat: 33.75541, lon: -84.40085, brg: 68.7, f: 'af', src: 'roof', el: 300, fz: 307.5, fact: 'Eight roof panels open like a camera aperture.' },
+  { id: 'sofi', name: 'SoFi Stadium', city: 'Inglewood, CA', g: 'nfl', cap: 70240, open: 2020, lat: 33.95340, lon: -118.33901, brg: 152.8, f: 'af', src: 'roof', el: 5, fz: 7.6, fact: 'The field sits about 100 feet below ground level.' },
+  { id: 'lucasoil', name: 'Lucas Oil Stadium', city: 'Indianapolis, IN', g: 'nfl', cap: 67000, open: 2008, lat: 39.76007, lon: -86.16381, brg: 25.9, f: 'af', src: 'roof', el: 218, fz: 206.0, fact: 'Retractable roof plus an operable window wall.' },
+  { id: 'fordfield', name: 'Ford Field', city: 'Detroit, MI', g: 'nfl', cap: 65000, open: 2002, lat: 42.34002, lon: -83.04568, brg: 153.8, f: 'af', src: 'roof', el: 185, fz: 186.2, fact: 'Built into the old Hudson’s warehouse.' },
+  { id: 'allegiant', name: 'Allegiant Stadium', city: 'Las Vegas, NV', g: 'nfl', cap: 65000, open: 2020, lat: 36.09073, lon: -115.18333, brg: 21.7, f: 'af', src: 'roof', el: 630, fz: 661.5, fact: 'The grass field rolls in on a tray from outside.' },
+
+  { id: 'rungrado', name: 'Rungrado 1st of May Stadium', city: 'Pyongyang', g: 'world', cap: 114000, approx: true, open: 1989, lat: 39.04963, lon: 125.77534, brg: 0.2, f: 'soc', src: 'pitch', el: 12, fz: 10.3 },
+  { id: 'campnou', name: 'Camp Nou', city: 'Barcelona', g: 'world', cap: 105000, approx: true, open: 1957, lat: 41.38089, lon: 2.12282, brg: 158.0, f: 'soc', src: 'pitch', el: 90, fz: 36.3, fact: 'Being rebuilt; that capacity is the target.' },
+  { id: 'wembley', name: 'Wembley Stadium', city: 'London', g: 'world', cap: 90000, open: 2007, lat: 51.55596, lon: -0.27957, brg: 89.8, f: 'soc', src: 'pitch', el: 45, fz: 48.7, fact: 'Claims 4 million m³ inside its walls and roof.' },
+  { id: 'monumental', name: 'Estadio Monumental', city: 'Buenos Aires', g: 'world', cap: 85000, approx: true, open: 1938, lat: -34.54530, lon: -58.44973, brg: 10.4, f: 'soc', src: 'pitch', el: 8, fz: 2.3, fact: 'River Plate’s home and Argentina’s largest stadium.' },
+  { id: 'azteca', name: 'Estadio Azteca', city: 'Mexico City', g: 'world', cap: 83000, approx: true, open: 1966, lat: 19.30293, lon: -99.15049, brg: 6.4, f: 'soc', src: 'pitch', el: 2240, fz: 2241.5, fact: 'Hosted the 1970 and 1986 World Cup finals.' },
+  { id: 'bernabeu', name: 'Santiago Bernabéu', city: 'Madrid', g: 'world', cap: 83000, approx: true, open: 1947, lat: 40.45305, lon: -3.68835, brg: 4.2, f: 'soc', src: 'pitch', el: 690, fz: 688.4, fact: 'The grass slides away into an underground greenhouse.' },
+  { id: 'signaliduna', name: 'Signal Iduna Park', city: 'Dortmund', g: 'world', cap: 81365, open: 1974, lat: 51.49261, lon: 7.45182, brg: 172.0, f: 'soc', src: 'pitch', el: 90, fz: 97.5, fact: 'Home of the Yellow Wall, a standing terrace for about 25,000.' },
+  { id: 'birdsnest', name: 'Beijing National Stadium', city: 'Beijing', g: 'world', cap: 80000, approx: true, open: 2008, lat: 39.99141, lon: 116.39027, brg: 178.4, f: 'soc', src: 'pitch', el: 48, fz: 44.3, fact: 'The Bird’s Nest, built for the 2008 Olympics.' },
+  { id: 'sansiro', name: 'San Siro', city: 'Milan', g: 'world', cap: 75817, open: 1926, lat: 45.47808, lon: 9.12403, brg: 21.4, f: 'soc', src: 'pitch', el: 130, fz: 124.8, fact: 'Shared by AC Milan and Inter.' },
+  { id: 'allianz', name: 'Allianz Arena', city: 'Munich', g: 'world', cap: 75024, open: 2005, lat: 48.21879, lon: 11.62470, brg: 164.7, f: 'soc', src: 'pitch', el: 495, fz: 490.1 },
+  { id: 'oldtrafford', name: 'Old Trafford', city: 'Manchester', g: 'world', cap: 74000, approx: true, open: 1910, lat: 53.46307, lon: -2.29135, brg: 70.7, f: 'soc', src: 'pitch', el: 33, fz: 25.8 },
+  { id: 'maracana', name: 'Maracanã', city: 'Rio de Janeiro', g: 'world', cap: 73139, open: 1950, lat: -22.91215, lon: -43.23019, brg: 31.0, f: 'soc', src: 'pitch', el: 10, fz: 6.9, fact: 'The 1950 World Cup final drew 199,854, most of them standing.' },
+
+  { id: 'strahov', name: 'Great Strahov Stadium', city: 'Prague', g: 'other', cap: 220000, approx: true, open: 1926, lat: 50.08049, lon: 14.38774, brg: 179.0, f: 'arena', src: 'arena', el: 330, fz: 332.4, fact: 'Built for mass gymnastics displays; that capacity is historic. Its floor now fits several training pitches.' },
+  { id: 'modi', name: 'Narendra Modi Stadium', city: 'Ahmedabad', g: 'other', cap: 132000, approx: true, open: 1982, lat: 23.09177, lon: 72.59734, brg: 0.0, f: 'oval', fl: 150.5, fw: 149.2, src: 'round', el: 50, fz: 84.4, fact: 'A cricket ground with the largest capacity of any stadium.' },
+  { id: 'mcg', name: 'Melbourne Cricket Ground', city: 'Melbourne', g: 'other', cap: 100024, open: 1853, lat: -37.81999, lon: 144.98345, brg: 76.3, f: 'oval', fl: 173.6, fw: 147.6, src: 'oval', el: 15, fz: 7.8, fact: 'Its record crowd is 121,696, at the 1970 Aussie rules grand final.' },
+];
+
+/* ---------- Helpers ---------- */
+const $ = id => document.getElementById(id);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const wrap180 = d => { const w = ((d + 180) % 360 + 360) % 360 - 180; return w === -180 ? 180 : w; };
+const norm360 = d => ((d % 360) + 360) % 360;
+const fmt = n => n.toLocaleString('en-US');
+const capText = st => st.cap ? (st.approx ? '~' : '') + fmt(st.cap) : '—';
+const mLat = la => 111132.954 - 559.822 * Math.cos(2 * la * DEG) + 1.175 * Math.cos(4 * la * DEG);   // meters per degree
+const mLon = la => 111412.84 * Math.cos(la * DEG) - 93.5 * Math.cos(3 * la * DEG);
+const AXES = ['N–S', 'NNE–SSW', 'NE–SW', 'ENE–WSW', 'E–W', 'ESE–WNW', 'SE–NW', 'SSE–NNW'];
+function axisText(b) { const n = ((b % 180) + 180) % 180; return `${AXES[Math.round(n / 22.5) % 8]} · ${Math.round(n) % 180}°`; }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/* ---------- State ---------- */
+const S = { a: 'michigan', b: 'maracana', mode: 'swipe', last: 'swipe', src: 'sat', swipe: 0.5, fade: 0.5, blink: 0.45, span: 560, lines: true, cam: { ...PRESETS.sideline }, offsets: {}, levels: {}, custom: [], ppm: 0, pu: 0, pv: 0, adjust: null };
+const ELEV = new Map();   // stadium id -> ground height (m) from Open-Meteo
+let INDEX = new Map();
+const all = () => STADIUMS.concat(S.custom);
+const byId = id => INDEX.get(id);
+function reindex() { INDEX = new Map(all().map(s => [s.id, s])); }
+
+(function restore() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (_) { s = {}; }
+  if (Array.isArray(s.custom)) {
+    S.custom = s.custom
+      .filter(c => c && typeof c.id === 'string' && c.id.startsWith('c-') && typeof c.name === 'string' && [c.lat, c.lon, c.brg].every(Number.isFinite))
+      .map(c => ({ id: c.id, name: c.name, city: String(c.city || ''), g: 'custom', lat: c.lat, lon: c.lon, brg: c.brg, f: c.f, fl: c.fl, fw: c.fw, src: c.src }));
+  }
+  reindex();
+  if (s.offsets && typeof s.offsets === 'object') {
+    for (const [id, o] of Object.entries(s.offsets)) {
+      if (o && typeof o === 'object') S.offsets[id] = { du: Number(o.du) || 0, dv: Number(o.dv) || 0, dr: Number(o.dr) || 0 };
+    }
+  }
+  for (const k of ['swipe', 'fade', 'blink']) if (Number.isFinite(s[k])) S[k] = clamp(s[k], 0, 1);
+  if (Number.isFinite(s.span)) S.span = clamp(Math.round(s.span / 10) * 10, 250, 1000);
+  if (typeof s.lines === 'boolean') S.lines = s.lines;
+  if (byId(s.a)) S.a = s.a;
+  if (byId(s.b)) S.b = s.b;
+  if (MODES.includes(s.mode)) S.mode = s.mode;
+  if (MODES.includes(s.last) && s.last !== 'grid') S.last = s.last;
+  if (s.src === 'sat' || s.src === 'g3d') S.src = s.src;
+  if (s.levels && typeof s.levels === 'object') for (const [id, v] of Object.entries(s.levels)) if (Number.isFinite(v)) S.levels[id] = v;
+  if (s.cam && typeof s.cam === 'object') {
+    const rel = Number(s.cam.rel), tilt = Number(s.cam.tilt), range = Number(s.cam.range);
+    if ([rel, tilt, range].every(Number.isFinite)) S.cam = { rel: wrap180(rel), tilt: clamp(tilt, 0, 90), range: clamp(range, 50, 20000) };
+  }
+  try {
+    const e = JSON.parse(localStorage.getItem(EKEY)) || {};
+    for (const [id, v] of Object.entries(e)) if (Number.isFinite(v)) ELEV.set(id, v);
+  } catch (_) { /* no cached heights */ }
+})();
+
+let saveTimer = 0;
+function writeState() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ a: S.a, b: S.b, mode: S.mode, last: S.last, src: S.src, swipe: S.swipe, fade: S.fade, blink: S.blink, span: S.span, lines: S.lines, cam: S.cam, offsets: S.offsets, levels: S.levels, custom: S.custom }));
+  } catch (_) { /* storage unavailable: settings just won't persist */ }
+}
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(writeState, 300); }
+function saveNow() { clearTimeout(saveTimer); writeState(); }
+
+/* ---------- DOM ---------- */
+const stage = $('stage'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+const gridEl = $('grid'), hudTop = $('hudTop'), hudBl = $('hudBl'), hudBr = $('hudBr'), attribEl = $('attrib');
+const swipeEl = $('swipe'), grip = $('grip'), statusEl = $('status'), banner = $('banner'), bannerTag = $('bannerTag');
+const noticeEl = $('notice'), noticeText = $('noticeText');
+const g3dEl = $('g3d'), layers = { a: $('g3dA'), b: $('g3dB') };
+const setupEl = $('setup'), setupCard = $('setupCard'), setupTitle = $('setupTitle'), setupMsg = $('setupMsg'), setupSteps = $('setupSteps'), setupTip = $('setupTip'), setupRaw = $('setupRaw'), setupDismiss = $('setupDismiss'), setupForget = $('setupForget'), keyForm = $('keyForm'), keyInput = $('keyInput');
+const selA = $('selA'), selB = $('selB'), amount = $('amount'), amountLabel = $('amountLabel'), amountOut = $('amountOut'), hint = $('hint'), linesBox = $('lines'), linesRow = $('linesRow'), camRow = $('camRow');
+const chipA = $('chipA'), chipB = $('chipB'), needleA = $('needleA'), needleB = $('needleB');
+const modeBtns = [...document.querySelectorAll('[data-mode]')], srcBtns = [...document.querySelectorAll('[data-src]')];
+const COLOR_A = css('--a') || '#4c8dff', COLOR_B = css('--b') || '#ffd21f', COLOR_LINE = css('--chalk') || '#e9ede7', BG = css('--night') || '#0b0f12';
+
+let framed = false;
+try { framed = window.self !== window.top; } catch (_) { framed = true; }
+
+/* ---------- Geometry ---------- */
+let W = 0, H = 0, DPR = 1, alpha = 0;   // alpha: screen angle of the field's long axis (0 = horizontal, -90 = vertical)
+
+function mercPx(lat, lon, z) {
+  const n = TS * 2 ** z, s = Math.sin(lat * DEG);
+  return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n];
+}
+const viewParams = () => ({ ppm: S.ppm, cx: W / 2, cy: H / 2, alpha, pu: S.pu, pv: S.pv, dpr: DPR });
+const minP = () => Math.min(W, H) / 6000;
+const maxP = () => Math.min(W, H) / 40;
+
+/* Affine map from tile pixels (relative to the field center at zoom z) to screen pixels.
+   Every stadium is rotated so its field's long axis lands on the same screen line, and scaled
+   by its own latitude so one screen pixel is the same number of meters everywhere.
+   Fine-tune offsets slide and turn the imagery; the outline stays on the shared anchor. */
+function geom(st, v) {
+  const o = S.offsets[st.id] || ZERO;
+  const cosl = Math.cos(st.lat * DEG);
+  let rho = wrap180(v.alpha - st.brg + 90), flip = 1;
+  if (rho > 90) { rho -= 180; flip = -1; } else if (rho <= -90) { rho += 180; flip = -1; }
+  rho -= o.dr || 0;
+  const z = clamp(Math.ceil(Math.log2(v.ppm * v.dpr * 2 * Math.PI * EARTH * cosl / TS / 1.3)), 2, MAXZ);
+  const k = TS * 2 ** z / (2 * Math.PI * EARTH * cosl);   // tile px per meter
+  const s = v.ppm / k, r = rho * DEG, c = Math.cos(r) * s, sn = Math.sin(r) * s;
+  const ar = v.alpha * DEG, ca = Math.cos(ar), sa = Math.sin(ar);
+  const du = flip * (o.du || 0) - v.pu, dv = flip * (o.dv || 0) - v.pv;
+  return {
+    z, flip,
+    m: [c, sn, -sn, c, v.cx + v.ppm * (du * ca - dv * sa), v.cy + v.ppm * (du * sa + dv * ca)],
+    M0: mercPx(st.lat, st.lon, z),
+    ax: v.cx + v.ppm * (-v.pu * ca + v.pv * sa),
+    ay: v.cy + v.ppm * (-v.pu * sa - v.pv * ca),
+  };
+}
+
+/* The ground point that sits under the shared anchor once fine-tune offsets are applied. */
+function effective(st) {
+  const o = S.offsets[st.id] || ZERO, brg = st.brg + (o.dr || 0), b = brg * DEG;
+  const du = o.du || 0, dv = o.dv || 0;
+  const dE = -du * Math.sin(b) - dv * Math.cos(b), dN = -du * Math.cos(b) + dv * Math.sin(b);
+  return { lat: st.lat + dN / mLat(st.lat), lon: st.lon + dE / mLon(st.lat), brg: norm360(brg) };
+}
+
+/* ---------- Tiles ---------- */
+const NEW = 0, LOADING = 1, OK = 2, ERR = 3;
+const cache = new Map(), queues = [[], []];
+const health = { ok: 0, err: 0, t0: 0 };
+let inflight = 0, frame = 0;
+const MAX_INFLIGHT = 10;
+
+function need(z, x, y, prio) {
+  const k = z + '/' + x + '/' + y;
+  let t = cache.get(k);
+  if (!t) { t = { k, z, x, y, state: NEW, img: null, used: frame }; cache.set(k, t); queues[prio].push(t); }
+  t.used = frame;
+  return t;
+}
+function pump() {
+  while (inflight < MAX_INFLIGHT) {
+    const t = queues[0].shift() || queues[1].shift();
+    if (!t) break;
+    if (t.state !== NEW) continue;
+    if (frame - t.used > 1) { cache.delete(t.k); continue; }   // no longer on screen
+    t.state = LOADING; inflight++;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => { t.state = OK; t.img = img; inflight--; health.ok++; checkHealth(); invalidate(); pump(); };
+    img.onerror = () => { t.state = ERR; inflight--; health.err++; checkHealth(); invalidate(); pump(); updateStatus(); };
+    img.src = tileUrl(t.z, t.x, t.y);
+  }
+}
+function evict() {
+  if (cache.size < 1200) return;
+  const done = [...cache.values()].filter(t => (t.state === OK || t.state === ERR) && frame - t.used > 3).sort((p, q) => p.used - q.used);
+  for (const t of done) { if (cache.size <= 900) break; cache.delete(t.k); }
+}
+function updateStatus() {
+  let text = '';
+  if (S.src === 'g3d' && S.mode !== 'grid') {
+    if (G.state === 'loading') text = 'Loading Google 3D…';
+  } else {
+    const n = inflight + queues[0].length + queues[1].length;
+    if (n) text = `Loading imagery · ${n} tiles`;
+  }
+  statusEl.hidden = !text;
+  statusEl.textContent = text;
+}
+function checkHealth() {
+  const using2d = S.mode === 'grid' || S.src !== 'g3d';
+  const waited = health.t0 && performance.now() - health.t0 > 8000;
+  const bad = using2d && health.ok === 0 && (health.err >= 6 || waited);
+  noticeEl.hidden = !bad;
+  if (bad) {
+    noticeText.textContent = framed
+      ? 'This looks like a preview window, and previews block map imagery. Download stadium-stack.html and open it in Chrome.'
+      : 'Check your internet connection. If you opened this file inside another app, open it in Chrome instead.';
+  }
+}
+
+function drawLayer(c2d, dpr, st, v, clip) {
+  const g = geom(st, v);
+  const [x0, y0, x1, y1] = clip;
+  if (x1 - x0 < 0.5 || y1 - y0 < 0.5) return g;
+  const [a, b, c, d, e, f] = g.m, det = a * d - b * c;
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) {
+    const X = x - e, Y = y - f;
+    const mx = (d * X - c * Y) / det + g.M0[0], my = (-b * X + a * Y) / det + g.M0[1];
+    mnx = Math.min(mnx, mx); mxx = Math.max(mxx, mx); mny = Math.min(mny, my); mxy = Math.max(mxy, my);
+  }
+  const n = 2 ** g.z;
+  const tx0 = clamp(Math.floor(mnx / TS), 0, n - 1), tx1 = clamp(Math.floor(mxx / TS), 0, n - 1);
+  const ty0 = clamp(Math.floor(mny / TS), 0, n - 1), ty1 = clamp(Math.floor(mxy / TS), 0, n - 1);
+  if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) > 900) return g;
+
+  // Ask for a coarse preview level first so something appears right away.
+  const sh = Math.min(3, g.z - 2);
+  if (sh > 0) for (let x = tx0 >> sh; x <= tx1 >> sh; x++) for (let y = ty0 >> sh; y <= ty1 >> sh; y++) need(g.z - sh, x, y, 0);
+
+  c2d.save();
+  c2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c2d.beginPath(); c2d.rect(x0, y0, x1 - x0, y1 - y0); c2d.clip();
+  c2d.setTransform(a * dpr, b * dpr, c * dpr, d * dpr, e * dpr, f * dpr);
+  c2d.imageSmoothingEnabled = true; c2d.imageSmoothingQuality = 'high';
+  const ox = g.M0[0], oy = g.M0[1], D = TS + 0.75;   // slight overlap hides seams between rotated tiles
+  for (let x = tx0; x <= tx1; x++) for (let y = ty0; y <= ty1; y++) {
+    const t = need(g.z, x, y, 1), dx = x * TS - ox, dy = y * TS - oy;
+    if (t.state === OK) { c2d.drawImage(t.img, dx, dy, D, D); continue; }
+    if (t.state === ERR) {   // no imagery at this zoom here: step up until a level loads
+      for (let k = 1; k <= 6 && g.z - k >= 0; k++) { if (need(g.z - k, x >> k, y >> k, 0).state !== ERR) break; }
+    }
+    for (let k = 1; k <= 6 && g.z - k >= 0; k++) {   // stand in with a loaded ancestor tile
+      const p = cache.get((g.z - k) + '/' + (x >> k) + '/' + (y >> k));
+      if (p && p.state === OK) {
+        const sub = TS / 2 ** k;
+        c2d.drawImage(p.img, (x - ((x >> k) << k)) * sub, (y - ((y >> k) << k)) * sub, sub, sub, dx, dy, D, D);
+        p.used = frame;
+        break;
+      }
+    }
+  }
+  c2d.restore();
+  return g;
+}
+
+function drawField(c2d, dpr, st, g, v, color) {
+  if (!st || st.f === 'arena' || st.f === 'none' || !st.f) return;
+  const [L, Wd] = st.f === 'af' ? AF_FIELD : st.f === 'soc' ? SOC_FIELD : [st.fl || 160, st.fw || 140];
+  const p = v.ppm, hl = L * p / 2, hw = Wd * p / 2;
+  c2d.save();
+  c2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c2d.translate(g.ax, g.ay);
+  c2d.rotate(v.alpha * DEG);
+  c2d.lineWidth = 1.6; c2d.strokeStyle = color;
+  c2d.shadowColor = 'rgba(0,0,0,.7)'; c2d.shadowBlur = 3;
+  c2d.beginPath();
+  if (st.f === 'oval') {
+    c2d.ellipse(0, 0, hl, hw, 0, 0, Math.PI * 2);
+  } else {
+    c2d.rect(-hl, -hw, 2 * hl, 2 * hw);
+    c2d.moveTo(0, -hw); c2d.lineTo(0, hw);
+    if (st.f === 'af') {
+      const gl = 45.72 * p;   // goal lines, 50 yd from midfield
+      c2d.moveTo(-gl, -hw); c2d.lineTo(-gl, hw); c2d.moveTo(gl, -hw); c2d.lineTo(gl, hw);
+    } else {
+      c2d.moveTo(9.15 * p, 0); c2d.arc(0, 0, 9.15 * p, 0, Math.PI * 2);
+    }
+  }
+  c2d.stroke();
+  c2d.restore();
+}
+
+/* ---------- Rendering ---------- */
+let dirty = false, blinkB = false, blinkTimer = 0;
+const off = document.createElement('canvas'), offCtx = off.getContext('2d');
+
+function invalidate() { if (!dirty) { dirty = true; requestAnimationFrame(render); } }
+function render() {
+  dirty = false;
+  if (!W || !H) return;
+  frame++;
+  if (S.mode === 'grid') renderGrid();
+  else if (S.src !== 'g3d') renderCompare();
+  else return;
+  if (!health.t0) { health.t0 = performance.now(); setTimeout(checkHealth, 8200); }
+  pump(); evict(); updateStatus();
+}
+
+function renderCompare() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const v = viewParams(), A = byId(S.a), B = byId(S.b);
+  const full = [0, 0, W, H];
+  if (off.width !== canvas.width || off.height !== canvas.height) { off.width = canvas.width; off.height = canvas.height; }
+  let gA, gB;
+  if (S.mode === 'swipe') {
+    const xs = S.swipe * W;
+    gA = drawLayer(ctx, DPR, A, v, [0, 0, xs, H]);
+    gB = drawLayer(ctx, DPR, B, v, [xs, 0, W, H]);
+  } else if (S.mode === 'fade') {
+    gA = drawLayer(ctx, DPR, A, v, full);
+    offCtx.setTransform(1, 0, 0, 1, 0, 0); offCtx.clearRect(0, 0, off.width, off.height);
+    gB = drawLayer(offCtx, DPR, B, v, full);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = S.fade; ctx.drawImage(off, 0, 0); ctx.restore();
+  } else {
+    // Blink: draw the visible stadium, and keep the hidden one loaded off screen so the swap is instant.
+    const [shown, hidden] = blinkB ? [B, A] : [A, B];
+    const gs = drawLayer(ctx, DPR, shown, v, full);
+    offCtx.setTransform(1, 0, 0, 1, 0, 0); offCtx.clearRect(0, 0, off.width, off.height);
+    const gh = drawLayer(offCtx, DPR, hidden, v, full);
+    [gA, gB] = blinkB ? [gh, gs] : [gs, gh];
+  }
+  if (S.lines) { drawField(ctx, DPR, A, gA, v, COLOR_A); drawField(ctx, DPR, B, gB, v, COLOR_B); }
+  setNeedle(needleA, gA); setNeedle(needleB, gB);
+  updateScale();
+}
+
+function setNeedle(node, g) {
+  if (!g) return;
+  const deg = Math.atan2(-g.m[3], -g.m[2]) / DEG + 90;   // screen direction of north
+  node.setAttribute('transform', `rotate(${deg.toFixed(2)} 26 26)`);
+}
+
+function nice(x) { const p = 10 ** Math.floor(Math.log10(x)), n = x / p; return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * p; }
+function lenText(n, unit) { return unit === 'm' && n >= 1000 ? `${n / 1000} km` : `${fmt(n)} ${unit}`; }
+function updateScale() {
+  const target = 120, m = nice(target / S.ppm), yd = nice(target / (S.ppm * 0.9144));
+  $('barM').style.width = (m * S.ppm).toFixed(1) + 'px'; $('barMl').textContent = lenText(m, 'm');
+  $('barY').style.width = (yd * 0.9144 * S.ppm).toFixed(1) + 'px'; $('barYl').textContent = lenText(yd, 'yd');
+}
+
+/* ---------- Lineup (grid) ---------- */
+let cells = [], gridBuilt = false;
+const visible = new Set();
+const io = new IntersectionObserver(entries => {
+  for (const en of entries) { const id = en.target.dataset.id; if (en.isIntersecting) visible.add(id); else visible.delete(id); }
+  invalidate();
+}, { root: gridEl, rootMargin: '240px 0px' });
+
+function buildGrid() {
+  io.disconnect(); visible.clear();
+  gridEl.textContent = '';
+  cells = [];
+  gridEl.append(el('p', 'grid-note'));
+  for (const [g, label] of GROUPS) {
+    const list = all().filter(s => s.g === g);
+    if (!list.length) continue;
+    gridEl.append(el('h3', 'ghead', label));
+    for (const st of list) {
+      const cell = el('div', 'cell'); cell.dataset.id = st.id;
+      const main = el('button', 'cell-main'); main.type = 'button'; main.setAttribute('aria-label', `Compare ${st.name} with A`);
+      const cv = document.createElement('canvas');
+      main.append(cv);
+      const cap = el('div', 'cell-cap'); cap.append(el('b', null, st.name), el('span', null, capText(st)));
+      const aBtn = el('button', 'cell-a', 'A'); aBtn.type = 'button'; aBtn.title = `Make ${st.name} stadium A`; aBtn.setAttribute('aria-label', aBtn.title);
+      cell.append(main, cap, aBtn);
+      gridEl.append(cell);
+      cells.push({ id: st.id, canvas: cv, c2d: cv.getContext('2d'), node: cell });
+      io.observe(cell);
+    }
+  }
+  gridBuilt = true;
+  markGrid();
+}
+function markGrid() {
+  for (const c of cells) { c.node.classList.toggle('is-a', c.id === S.a); c.node.classList.toggle('is-b', c.id === S.b); }
+}
+function renderGrid() {
+  const note = gridEl.querySelector('.grid-note');
+  if (note) note.textContent = `Every frame is ${fmt(S.span)} m (${fmt(Math.round(S.span / 0.9144))} yd) wide, field across the middle. Click a stadium to compare it with A.`;
+  for (const c of cells) {
+    if (!visible.has(c.id)) continue;
+    const st = byId(c.id), w = c.canvas.clientWidth, h = c.canvas.clientHeight;
+    if (!st || !w || !h) continue;
+    const pw = Math.round(w * DPR), ph = Math.round(h * DPR);
+    if (c.canvas.width !== pw || c.canvas.height !== ph) { c.canvas.width = pw; c.canvas.height = ph; }
+    c.c2d.setTransform(1, 0, 0, 1, 0, 0);
+    c.c2d.fillStyle = BG; c.c2d.fillRect(0, 0, pw, ph);
+    const v = { ppm: w / S.span, cx: w / 2, cy: h / 2, alpha: 0, pu: 0, pv: 0, dpr: DPR };
+    const g = drawLayer(c.c2d, DPR, st, v, [0, 0, w, h]);
+    if (S.lines) drawField(c.c2d, DPR, st, g, v, COLOR_LINE);
+  }
+}
+gridEl.addEventListener('click', e => {
+  const cell = e.target.closest('.cell'); if (!cell) return;
+  const id = cell.dataset.id;
+  if (e.target.closest('.cell-a')) { if (id === S.b) S.b = S.a; setLayer('a', id); return; }
+  if (e.target.closest('.cell-main')) { if (id === S.a) S.a = S.b; setLayer('b', id); setMode(S.last); }
+});
+
+/* ---------- Google 3D ---------- */
+const G = { key: '', state: 'off', error: '', code: '', msg: '', lib: null, maps: { a: null, b: null }, driver: 'b', applying: 0, syncQ: false, pan: { along: 0, cross: 0, dz: 0 }, loadStarted: false, built: false, builtAt: 0, dismissed: false, leveling: null };
+function readKey() { try { return localStorage.getItem(GKEY) || ''; } catch (_) { return ''; } }
+function storeKey(k) {
+  G.key = k;
+  try { if (k) localStorage.setItem(GKEY, k); else localStorage.removeItem(GKEY); } catch (_) { /* key lasts for this visit only */ }
+}
+/* Field height above sea level in Google's 3D model: one you set by clicking, else measured from Google's 3D, else elevation data. */
+const fieldZ = st => Number.isFinite(S.levels[st.id]) ? S.levels[st.id]
+  : Number.isFinite(st.fz) ? st.fz
+  : ELEV.has(st.id) ? ELEV.get(st.id) : (Number.isFinite(st.el) ? st.el : 0);
+
+function loadGoogle(key) {
+  return new Promise((resolve, reject) => {
+    const cb = '__stadiumStackGoogleReady';
+    window[cb] = () => resolve();
+    window.gm_authFailure = () => googleFailed('', '');
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?' + new URLSearchParams({ key, v: 'weekly', libraries: 'maps3d', loading: 'async', callback: cb });
+    s.async = true;
+    s.onerror = () => { const err = new Error('The Google Maps script did not load.'); err.code = 'load'; reject(err); };
+    document.head.append(s);
+  }).then(() => google.maps.importLibrary('maps3d'));
+}
+
+async function start3d() {
+  if (G.state === 'loading' || G.state === 'ready') return;
+  if (!G.key) { G.state = 'nokey'; refreshStage(); return; }
+  G.state = 'loading'; G.loadStarted = true;
+  hookGoogleConsole();
+  refreshStage();
+  try {
+    G.lib = await loadGoogle(G.key);
+    if (G.state !== 'loading') return;   // Google already turned the key down
+    build3d();
+    G.built = true;
+    if (G.state === 'loading') G.state = 'ready';
+  } catch (err) {
+    if (G.state === 'loading') { G.state = 'error'; G.error = err && err.code === 'load' ? 'load' : 'init'; G.msg = (err && err.message) || ''; }
+  }
+  refreshStage();
+}
+
+/* Camera for one stadium: same range, tilt and heading relative to its own field, plus the shared pan. */
+function camFor(w) {
+  const st = byId(S[w]), E = effective(st), b = E.brg * DEG, p = G.pan;
+  const dE = p.along * Math.sin(b) + p.cross * Math.cos(b), dN = p.along * Math.cos(b) - p.cross * Math.sin(b);
+  return {
+    center: { lat: E.lat + dN / mLat(E.lat), lng: E.lon + dE / mLon(E.lat), altitude: fieldZ(st) + p.dz },
+    heading: norm360(E.brg + S.cam.rel), tilt: S.cam.tilt, range: S.cam.range,
+  };
+}
+function build3d() {
+  const { Map3DElement, MapMode } = G.lib;
+  const mode = (MapMode && MapMode.SATELLITE) || 'SATELLITE';
+  G.builtAt = performance.now();
+  for (const w of ['a', 'b']) {
+    const c = camFor(w);
+    const m = new Map3DElement({ center: c.center, heading: c.heading, tilt: c.tilt, range: c.range, mode });
+    try { m.description = `3D view of ${byId(S[w]).name}`; } catch (_) { /* optional */ }
+    layers[w].replaceChildren(m);
+    G.maps[w] = m;
+    for (const ev of CAM_EVENTS) m.addEventListener(ev, () => onCam(w));
+    m.addEventListener('gmp-error', ev => { if (performance.now() - G.builtAt < 20000) googleFailed('', gmpErrorText(ev)); });
+    m.addEventListener('gmp-click', ev => onMapClick(w, ev));
+  }
+}
+function gmpErrorText(ev) {
+  const e = ev && (ev.error || ev.detail);
+  return String((e && (e.message || e)) || (ev && ev.message) || 'The 3D map reported an error.');
+}
+function apply3d(w) {
+  const m = G.maps[w]; if (!m) return;
+  const c = camFor(w);
+  G.applying++;
+  try { m.center = c.center; m.heading = c.heading; m.tilt = c.tilt; m.range = c.range; } finally { G.applying--; }
+}
+function apply3dBoth() { if (G.built) { apply3d('a'); apply3d('b'); } }
+function describe3d() {
+  for (const w of ['a', 'b']) { const m = G.maps[w]; if (m) try { m.description = `3D view of ${byId(S[w]).name}`; } catch (_) { /* optional */ } }
+}
+function onCam(w) {
+  if (G.applying || w !== G.driver || G.syncQ) return;
+  G.syncQ = true;
+  requestAnimationFrame(sync3d);
+}
+/* Mirror the camera the viewer is moving onto the other stadium, measured from each field's own axis. */
+function sync3d() {
+  G.syncQ = false;
+  const w = G.driver, m = G.maps[w]; if (!m || !m.center) return;
+  const st = byId(S[w]), E = effective(st), b = E.brg * DEG, c = m.center;
+  const lat = typeof c.lat === 'function' ? c.lat() : Number(c.lat), lng = typeof c.lng === 'function' ? c.lng() : Number(c.lng);
+  if (![lat, lng, m.heading, m.tilt, m.range].every(Number.isFinite)) return;
+  const dE = (lng - E.lon) * mLon(E.lat), dN = (lat - E.lat) * mLat(E.lat);
+  G.pan = { along: dE * Math.sin(b) + dN * Math.cos(b), cross: dE * Math.cos(b) - dN * Math.sin(b), dz: (Number(c.altitude) || 0) - fieldZ(st) };
+  S.cam = { rel: wrap180(m.heading - E.brg), tilt: m.tilt, range: m.range };
+  apply3d(w === 'a' ? 'b' : 'a');
+  updateEarth(); save();
+}
+function visual3d() {
+  const s = layers.b.style;
+  if (G.leveling) {   // show only the stadium being leveled
+    s.clipPath = 'none'; s.opacity = '1'; s.visibility = G.leveling === 'b' ? 'visible' : 'hidden';
+    return;
+  }
+  s.clipPath = S.mode === 'swipe' ? `inset(0 0 0 ${(S.swipe * 100).toFixed(2)}%)` : 'none';
+  s.opacity = S.mode === 'fade' ? String(S.fade) : '1';
+  s.visibility = S.mode === 'blink' && !blinkB ? 'hidden' : 'visible';
+}
+
+/* Set field level: the viewer clicks the field in Google 3D and we keep the height Google reports there. */
+const levelBanner = $('levelBanner'), levelTag = $('levelTag'), levelText = $('levelText');
+function startLeveling(w) {
+  if (!G.built) return;
+  G.leveling = w;
+  const st = byId(S[w]);
+  levelTag.textContent = w.toUpperCase(); levelTag.className = 'tag ' + w;
+  levelText.textContent = `Click the middle of ${st.name}’s field. If a roof covers it, click the ground beside the stadium.`;
+  levelBanner.hidden = false;
+  swipeEl.hidden = true;
+  visual3d(); updateCards();
+}
+function stopLeveling() {
+  if (!G.leveling) return;
+  G.leveling = null;
+  levelBanner.hidden = true;
+  refreshStage(); updateCards();
+}
+function onMapClick(w, ev) {
+  if (G.leveling !== w) return;
+  const p = ev && ev.position;
+  const alt = p ? Number(p.altitude) : NaN;
+  if (!Number.isFinite(alt)) return;
+  S.levels[S[w]] = Math.round(alt * 10) / 10;
+  G.pan = { along: 0, cross: 0, dz: 0 };
+  stopLeveling();
+  apply3dBoth(); updateEarth(); updateCards(); save();
+}
+$('levelCancel').addEventListener('click', stopLeveling);
+for (const w of ['a', 'b']) {
+  for (const ev of ['pointerdown', 'wheel', 'touchstart', 'keydown']) layers[w].addEventListener(ev, () => { G.driver = w; }, { capture: true, passive: true });
+}
+
+const SETUP = {
+  nokey: { title: 'Google 3D needs a key', msg: 'Google only lets its 3D view run inside another page with an API key. A free Maps Demo Key works and needs no credit card.' },
+  load: { title: 'Couldn’t reach Google', msg: 'The Google Maps script didn’t load. Check your connection. Preview windows inside other apps block it, so open this file in Chrome.' },
+  init: { title: 'Google 3D couldn’t start', msg: 'Google’s 3D view needs WebGL, so try Chrome with hardware acceleration on.' },
+};
+/* What each Google Maps error code means for this page, in plain words. */
+const GOOGLE_FIX = {
+  RefererNotAllowedMapError: 'Google won’t serve this key to this page’s address.',
+  RefererDeniedMapError: 'Google won’t serve this key to this page’s address.',
+  ApiNotActivatedMapError: 'The Maps JavaScript API isn’t turned on for this key’s Google Cloud project. Turn it on there, or use a Maps Demo Key.',
+  BillingNotEnabledMapError: 'This key’s Google Cloud project needs billing turned on. A Maps Demo Key doesn’t.',
+  ApiTargetBlockedMapError: 'This key is restricted from the Maps JavaScript API. Lift that restriction in Google Cloud, or use a Maps Demo Key.',
+  InvalidKeyMapError: 'Google says this key isn’t valid. Copy it again, or get a fresh Maps Demo Key.',
+  MissingKeyMapError: 'Google didn’t receive a key. Paste it again.',
+  ExpiredKeyMapError: 'This key has expired. Get a fresh Maps Demo Key.',
+  DeletedApiProjectMapError: 'The Google Cloud project behind this key was deleted. Get a fresh Maps Demo Key.',
+  OverQuotaMapError: 'This key has used up today’s allowance. Demo Keys reset each day.',
+  ProjectDeniedMapError: 'Google has blocked the project behind this key.',
+};
+
+/* Google reports key and 3D problems in the console; copy them onto the page so nobody needs DevTools. */
+let consoleHooked = false;
+function hookGoogleConsole() {
+  if (consoleHooked) return;
+  consoleHooked = true;
+  for (const level of ['error', 'warn']) {
+    const orig = console[level].bind(console);
+    console[level] = (...args) => {
+      try { noteGoogle(level, args); } catch (_) { /* never break logging */ }
+      orig(...args);
+    };
+  }
+}
+function noteGoogle(level, args) {
+  const text = args.map(a => (a && a.message) || (typeof a === 'string' ? a : '')).join(' ').trim();
+  if (!text) return;
+  const m = text.match(/Google Maps JavaScript API (error|warning): (\w+)/);
+  if (m) { if (m[1] === 'error') googleFailed(m[2], text); return; }
+  const early = !G.builtAt || performance.now() - G.builtAt < 20000;
+  if (level === 'error' && early && /maps3d|Map3DElement|gmp-map-3d|3D Map|Photorealistic|tile\.googleapis/i.test(text)) googleFailed('', text);
+}
+function googleFailed(code, text) {
+  if (G.state === 'error' && G.error === 'google') {
+    if (code && !G.code) G.code = code;
+    if (text && !G.msg) G.msg = text;
+  } else {
+    G.state = 'error'; G.error = 'google'; G.code = code || ''; G.msg = text || ''; G.dismissed = false;
+  }
+  G.msg = String(G.msg).slice(0, 700);
+  refreshStage();
+}
+
+/* A one-line local server command for the folder this file sits in. */
+function serveCommand() {
+  const path = decodeURIComponent(location.pathname);
+  const i = path.lastIndexOf('/');
+  const file = path.slice(i + 1) || 'stadium-stack.html';
+  const win = /^\/[A-Za-z]:\//.test(path);
+  const dir = win ? path.slice(1, i).replace(/\//g, '\\') : (path.slice(0, i) || '/');
+  const cmd = win ? `cd /d "${dir}" && python -m http.server 8000` : `cd "${dir}" && python3 -m http.server 8000`;
+  return { cmd, url: 'http://localhost:8000/' + encodeURIComponent(file) };
+}
+function buildFileTip() {
+  const { cmd, url } = serveCommand();
+  setupTip.textContent = '';
+  const row = el('div', 'cmd'), code = el('code', null, cmd), btn = el('button', 'copy', 'Copy');
+  btn.type = 'button';
+  btn.addEventListener('click', () => {
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(code); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = 'Selected'; };
+    try { navigator.clipboard.writeText(cmd).then(() => { btn.textContent = 'Copied'; }, fallback); } catch (_) { fallback(); }
+  });
+  row.append(code, btn);
+  const link = el('a', null, url.replace('http://', ''));
+  link.href = url;
+  const p2 = el('p');
+  p2.append('Then open ', link, ' and paste your key there.');
+  setupTip.append(el('p', null, 'This page is opened straight from a file, and Google often turns those down. Serve the folder from your computer instead. In Terminal, run:'), row, p2);
+}
+
+function renderSetup() {
+  const k = G.state === 'nokey' ? 'nokey' : (G.error === 'google' || SETUP[G.error] ? G.error : 'init');
+  const copy = k === 'google'
+    ? { title: 'Google turned down the 3D view', msg: GOOGLE_FIX[G.code] || 'Google’s 3D map reported a problem. Its message is below.' }
+    : SETUP[k];
+  setupCard.classList.toggle('err', k !== 'nokey');
+  setupTitle.textContent = copy.title;
+  setupMsg.textContent = copy.msg + (k === 'init' && G.msg ? ` (${G.msg})` : '');
+  setupSteps.hidden = k !== 'nokey';
+  keyForm.hidden = k !== 'nokey' && k !== 'google';
+  const fileTip = k === 'google' && location.protocol === 'file:';
+  setupTip.hidden = !fileTip;
+  if (fileTip) buildFileTip();
+  setupRaw.hidden = !(k === 'google' && (G.msg || G.code));
+  setupRaw.textContent = G.msg || G.code || '';
+  setupDismiss.hidden = !(k === 'google' && G.built);
+  setupForget.hidden = !G.key;
+}
+
+keyForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const k = keyInput.value.trim();
+  if (k.length < 20 || /\s/.test(k)) { setupMsg.textContent = 'That doesn’t look like a complete key. Copy the whole key and paste it again.'; return; }
+  storeKey(k);
+  keyInput.value = '';
+  if (G.loadStarted) { S.src = 'g3d'; saveNow(); location.reload(); return; }   // Google's script only loads once per page
+  G.state = 'off';
+  start3d();
+});
+function forgetKey() {
+  storeKey('');
+  S.src = 'sat';
+  if (G.loadStarted) { saveNow(); location.reload(); return; }
+  G.state = 'off';
+  setSrc('sat');
+}
+$('forgetKey').addEventListener('click', forgetKey);
+setupForget.addEventListener('click', forgetKey);
+setupDismiss.addEventListener('click', () => { G.dismissed = true; refreshStage(); });
+camRow.addEventListener('click', e => {
+  const b = e.target.closest('[data-cam]'); if (!b) return;
+  S.cam = { ...PRESETS[b.dataset.cam] };
+  G.pan = { along: 0, cross: 0, dz: 0 };
+  apply3dBoth(); updateEarth(); save();
+});
+
+/* ---------- Ground heights (Open-Meteo, Copernicus DEM) ---------- */
+let elevBusy = false, elevAgain = false;
+async function ensureElevations() {
+  if (elevBusy) { elevAgain = true; return; }
+  const missing = all().filter(s => !ELEV.has(s.id));
+  if (!missing.length) return;
+  elevBusy = true;
+  try {
+    for (let i = 0; i < missing.length; i += 100) {
+      const chunk = missing.slice(i, i + 100);
+      const q = new URLSearchParams({ latitude: chunk.map(s => s.lat.toFixed(5)).join(','), longitude: chunk.map(s => s.lon.toFixed(5)).join(',') });
+      const r = await fetch('https://api.open-meteo.com/v1/elevation?' + q);
+      if (!r.ok) break;
+      const j = await r.json();
+      const arr = Array.isArray(j.elevation) ? j.elevation : [];
+      chunk.forEach((s, k) => { const v = Number(arr[k]); if (Number.isFinite(v)) ELEV.set(s.id, v); });
+    }
+    try { localStorage.setItem(EKEY, JSON.stringify(Object.fromEntries(ELEV))); } catch (_) { /* no cache */ }
+    updateEarth();
+    apply3dBoth();
+  } catch (_) {
+    /* keep the built-in estimates */
+  } finally {
+    elevBusy = false;
+    if (elevAgain) { elevAgain = false; ensureElevations(); }
+  }
+}
+
+/* ---------- Google Earth links ---------- */
+function earthUrl(st) {
+  const E = effective(st), c = S.cam;
+  const h = norm360(E.brg + c.rel);
+  return `https://earth.google.com/web/@${E.lat.toFixed(6)},${E.lon.toFixed(6)},${fieldZ(st).toFixed(1)}a,${Math.round(c.range)}d,35y,${h.toFixed(1)}h,${c.tilt.toFixed(1)}t,0r`;
+}
+function updateEarth() {
+  for (const w of ['a', 'b']) {
+    const st = byId(S[w]), link = $('earth' + w.toUpperCase());
+    if (!st) continue;
+    link.href = earthUrl(st);
+    link.setAttribute('aria-label', `Open ${st.name} in Google Earth 3D`);
+  }
+}
+
+/* ---------- UI ---------- */
+function fillSelects() {
+  for (const sel of [selA, selB]) {
+    sel.textContent = '';
+    for (const [g, label] of GROUPS) {
+      const list = all().filter(s => s.g === g);
+      if (!list.length) continue;
+      const og = document.createElement('optgroup'); og.label = label;
+      for (const s of list) { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; og.append(o); }
+      sel.append(og);
+    }
+  }
+  selA.value = S.a; selB.value = S.b;
+}
+
+function tuneText(st) {
+  const o = S.offsets[st.id] || ZERO;
+  const parts = [];
+  if (Number.isFinite(S.levels[st.id])) parts.push(`field level set to ${S.levels[st.id].toFixed(1)} m`);
+  if (o.dr) parts.push(`turned ${Math.abs(o.dr)}° ${o.dr < 0 ? 'clockwise' : 'counterclockwise'}`);
+  const d = Math.hypot(o.du || 0, o.dv || 0);
+  if (d >= 0.05) parts.push(`moved ${d.toFixed(1)} m`);
+  if (!parts.length) return 'No adjustments.';
+  const t = parts.join(', ');
+  return t[0].toUpperCase() + t.slice(1) + '.';
+}
+function fillCard(which) {
+  const st = byId(S[which]), U = which.toUpperCase();
+  if (!st) return;
+  $('name' + U).textContent = st.name;
+  $('meta' + U).textContent = [st.city, st.open ? 'opened ' + st.open : ''].filter(Boolean).join(' · ');
+  $('cap' + U).textContent = capText(st);
+  $('axis' + U).textContent = axisText(st.brg + ((S.offsets[st.id] || ZERO).dr || 0));
+  const fact = $('fact' + U); fact.textContent = st.fact || ''; fact.hidden = !st.fact;
+  $('src' + U).textContent = NOTES[st.src] || '';
+  $('read' + U).textContent = tuneText(st);
+  $('remove' + U).hidden = st.g !== 'custom';
+  const mv = document.querySelector(`.pill[data-act="move"][data-w="${which}"]`);
+  mv.setAttribute('aria-pressed', String(S.adjust === which));
+  const lv = document.querySelector(`.pill[data-act="level"][data-w="${which}"]`);
+  lv.hidden = !(S.src === 'g3d' && G.built);
+  lv.setAttribute('aria-pressed', String(G.leveling === which));
+}
+function updateCards() { fillCard('a'); fillCard('b'); }
+
+function updateChips() {
+  const A = byId(S.a), B = byId(S.b);
+  chipA.querySelector('.nm').textContent = A.name; chipA.querySelector('.cp').textContent = capText(A);
+  chipB.querySelector('.nm').textContent = B.name; chipB.querySelector('.cp').textContent = capText(B);
+  chipA.classList.toggle('off', S.mode === 'blink' && blinkB);
+  chipB.classList.toggle('off', S.mode === 'blink' && !blinkB);
+  canvas.setAttribute('aria-label', `Satellite view of ${A.name} (A) and ${B.name} (B), fields lined up at the same scale. Arrow keys pan, plus and minus zoom.`);
+}
+
+function setLayer(which, id) {
+  if (!byId(id)) return;
+  S[which] = id;
+  if (G.leveling) stopLeveling();
+  selA.value = S.a; selB.value = S.b;
+  updateCards(); updateChips(); markGrid();
+  G.pan = { along: 0, cross: 0, dz: 0 };
+  apply3dBoth(); describe3d(); updateEarth();
+  save(); invalidate();
+}
+
+const HINTS = {
+  swipe: 'Drag the divider to wipe between A and B. Drag the map to pan; scroll or pinch to zoom.',
+  fade: 'Slide to fade B over A. Drag the map to pan; scroll or pinch to zoom.',
+  blink: 'A and B trade places on a timer. Drag the map to pan; scroll or pinch to zoom.',
+  grid: 'Every stadium at the same scale. Click one to compare it with A.',
+};
+const HINTS3D = {
+  swipe: 'Drag the divider to wipe between A and B. Move either map the way you would in Google Maps; the other one follows.',
+  fade: 'Slide to fade B over A. Move the map the way you would in Google Maps; both stadiums share one camera.',
+  blink: 'A and B trade places on a timer. Move the map the way you would in Google Maps; both stadiums share one camera.',
+};
+const blinkPeriod = () => Math.round(1600 - S.blink * 1300);
+function amountText() {
+  if (S.mode === 'grid') return `${fmt(S.span)} m`;
+  if (S.mode === 'blink') return `${(blinkPeriod() / 1000).toFixed(1)} s`;
+  return `${Math.round(S[S.mode] * 100)}%`;
+}
+function configureAmount() {
+  if (S.mode === 'grid') {
+    amount.min = 250; amount.max = 1000; amount.step = 10; amount.value = S.span;
+    amountLabel.textContent = 'Frame width';
+  } else {
+    amount.min = 0; amount.max = 100; amount.step = 1; amount.value = Math.round(S[S.mode] * 100);
+    amountLabel.textContent = S.mode === 'swipe' ? 'Divider' : S.mode === 'fade' ? 'Show B' : 'Speed';
+  }
+  amountOut.textContent = amountText();
+}
+function startBlink() {
+  stopBlink();
+  blinkTimer = setInterval(() => { blinkB = !blinkB; updateChips(); invalidate(); visual3d(); }, blinkPeriod());
+}
+function stopBlink() { clearInterval(blinkTimer); blinkTimer = 0; blinkB = false; }
+function positionSwipe() { swipeEl.style.left = (S.swipe * 100) + '%'; }
+
+/* Shows the right layers for the current view and imagery choice. */
+function refreshStage() {
+  if (S.src === 'g3d' && S.mode !== 'grid' && G.state === 'off') { start3d(); return; }
+  const grid = S.mode === 'grid', want3d = S.src === 'g3d' && !grid;
+  const setup = want3d && (G.state === 'nokey' || (G.state === 'error' && !G.dismissed));
+  const show3d = want3d && G.built && !setup;
+  gridEl.hidden = !grid;
+  canvas.hidden = grid || want3d;
+  g3dEl.hidden = !show3d;
+  setupEl.hidden = !setup;
+  if (setup) renderSetup();
+  hudTop.hidden = grid || setup;
+  hudBl.hidden = grid || want3d;
+  hudBr.hidden = grid || want3d;
+  attribEl.hidden = want3d;
+  if (G.leveling && !show3d) { G.leveling = null; levelBanner.hidden = true; }
+  swipeEl.hidden = S.mode !== 'swipe' || setup || (want3d && !show3d) || !!G.leveling;
+  camRow.hidden = !(S.src === 'g3d' && (G.built || G.state === 'loading'));
+  linesRow.hidden = want3d;
+  hint.textContent = (want3d && HINTS3D[S.mode]) || HINTS[S.mode];
+  if (show3d) visual3d();
+  updateCards();
+  checkHealth(); updateStatus();
+}
+
+function setMode(m) {
+  if (!MODES.includes(m)) return;
+  if (m === 'grid') stopAdjust();
+  S.mode = m;
+  if (m !== 'grid') S.last = m;
+  for (const b of modeBtns) b.setAttribute('aria-checked', String(b.dataset.mode === m));
+  if (m === 'grid' && !gridBuilt) buildGrid();
+  if (m === 'grid') markGrid();
+  if (m === 'blink') startBlink(); else stopBlink();
+  configureAmount();
+  refreshStage();
+  updateChips(); save(); invalidate();
+}
+function setSrc(s) {
+  if (s !== 'sat' && s !== 'g3d') return;
+  S.src = s;
+  for (const b of srcBtns) b.setAttribute('aria-checked', String(b.dataset.src === s));
+  if (s === 'g3d') { stopAdjust(); if (S.mode === 'grid') { setMode(S.last); return; } }
+  refreshStage(); save(); invalidate();
+}
+
+function startAdjust(which) {
+  if (S.src === 'g3d') setSrc('sat');
+  if (S.mode === 'grid' || S.mode === 'blink') setMode('fade');
+  S.adjust = which;
+  bannerTag.textContent = which.toUpperCase(); bannerTag.className = 'tag ' + which;
+  banner.hidden = false; canvas.classList.add('adjusting');
+  updateCards();
+}
+function stopAdjust() {
+  if (!S.adjust) return;
+  S.adjust = null; banner.hidden = true; canvas.classList.remove('adjusting');
+  updateCards(); updateEarth(); save();
+}
+
+/* ---------- View navigation ---------- */
+function fit() { S.ppm = Math.min(W, H) / FIT_SPAN; S.pu = 0; S.pv = 0; invalidate(); }
+function panBy(dx, dy) {
+  const a = alpha * DEG, ca = Math.cos(a), sa = Math.sin(a);
+  S.pu = clamp(S.pu - (dx * ca + dy * sa) / S.ppm, -4000, 4000);
+  S.pv = clamp(S.pv - (-dx * sa + dy * ca) / S.ppm, -4000, 4000);
+  invalidate();
+}
+function zoomAt(sx, sy, f) {
+  const p0 = S.ppm, p1 = clamp(p0 * f, minP(), maxP());
+  if (p1 === p0) return;
+  const a = alpha * DEG, ca = Math.cos(a), sa = Math.sin(a), ox = sx - W / 2, oy = sy - H / 2;
+  const u = ox * ca + oy * sa, w = -ox * sa + oy * ca;
+  S.pu += u / p0 - u / p1; S.pv += w / p0 - w / p1; S.ppm = p1;
+  invalidate();
+}
+function nudge(which, dx, dy) {
+  const st = byId(S[which]); if (!st) return;
+  const g = geom(st, viewParams()), a = alpha * DEG, ca = Math.cos(a), sa = Math.sin(a);
+  const o = S.offsets[st.id] || (S.offsets[st.id] = { du: 0, dv: 0, dr: 0 });
+  o.du += g.flip * (dx * ca + dy * sa) / S.ppm;
+  o.dv += g.flip * (-dx * sa + dy * ca) / S.ppm;
+  $('read' + which.toUpperCase()).textContent = tuneText(st);
+  invalidate();
+}
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  const nw = Math.max(1, r.width), nh = Math.max(1, r.height);
+  const first = !W;
+  W = nw; H = nh; DPR = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  alpha = W >= H * 0.9 ? 0 : -90;
+  if (first || !S.ppm) fit(); else S.ppm = clamp(S.ppm, minP(), maxP());
+  invalidate();
+}
+
+/* Pointer: one finger or mouse pans (or moves a stadium while fine-tuning); two fingers pinch-zoom. */
+const ptrs = new Map();
+let pinch = null;
+function pinchInfo() {
+  const [p, q] = [...ptrs.values()];
+  return { d: Math.max(1, Math.hypot(p.x - q.x, p.y - q.y)), mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 };
+}
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  canvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  pinch = ptrs.size === 2 ? pinchInfo() : null;
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 1) { if (S.adjust) nudge(S.adjust, dx, dy); else panBy(dx, dy); }
+  else if (ptrs.size === 2 && pinch) {
+    const now = pinchInfo(), r = canvas.getBoundingClientRect();
+    zoomAt(now.mx - r.left, now.my - r.top, now.d / pinch.d);
+    panBy(now.mx - pinch.mx, now.my - pinch.my);
+    pinch = now;
+  }
+});
+function endPointer(e) {
+  if (!ptrs.delete(e.pointerId)) return;
+  pinch = ptrs.size === 2 ? pinchInfo() : null;
+  if (!ptrs.size) { canvas.classList.remove('dragging'); if (S.adjust) { updateEarth(); save(); } }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect(), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-dy * 0.0016));
+}, { passive: false });
+canvas.addEventListener('dblclick', e => { const r = canvas.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); });
+canvas.addEventListener('keydown', e => {
+  const step = 60;
+  const act = {
+    ArrowLeft: () => panBy(step, 0), ArrowRight: () => panBy(-step, 0), ArrowUp: () => panBy(0, step), ArrowDown: () => panBy(0, -step),
+    '+': () => zoomAt(W / 2, H / 2, 1.25), '=': () => zoomAt(W / 2, H / 2, 1.25), '-': () => zoomAt(W / 2, H / 2, 0.8), '0': fit,
+  }[e.key];
+  if (act) { e.preventDefault(); act(); }
+});
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (S.adjust) stopAdjust(); if (G.leveling) stopLeveling(); });
+
+/* Swipe divider */
+let swiping = false;
+function setSwipe(x) {
+  S.swipe = clamp(x, 0, 1); positionSwipe();
+  if (S.mode === 'swipe') { amount.value = Math.round(S.swipe * 100); amountOut.textContent = amountText(); }
+  visual3d();
+  invalidate();
+}
+grip.addEventListener('pointerdown', e => { e.preventDefault(); swiping = true; grip.setPointerCapture(e.pointerId); });
+grip.addEventListener('pointermove', e => { if (!swiping) return; const r = stage.getBoundingClientRect(); setSwipe((e.clientX - r.left) / r.width); });
+const endSwipe = () => { if (swiping) { swiping = false; save(); } };
+grip.addEventListener('pointerup', endSwipe);
+grip.addEventListener('pointercancel', endSwipe);
+grip.addEventListener('keydown', e => {
+  const d = e.key === 'ArrowLeft' ? -0.02 : e.key === 'ArrowRight' ? 0.02 : 0;
+  if (d) { e.preventDefault(); setSwipe(S.swipe + d); save(); }
+});
+
+/* Controls */
+selA.addEventListener('change', () => { if (selA.value === S.b) S.b = S.a; setLayer('a', selA.value); });
+selB.addEventListener('change', () => { if (selB.value === S.a) S.a = S.b; setLayer('b', selB.value); });
+$('swap').addEventListener('click', () => { [S.a, S.b] = [S.b, S.a]; setLayer('a', S.a); });
+for (const b of modeBtns) b.addEventListener('click', () => setMode(b.dataset.mode));
+for (const b of srcBtns) b.addEventListener('click', () => setSrc(b.dataset.src));
+function arrowRadios(group, values, current, set) {
+  group.addEventListener('keydown', e => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const i = (values.indexOf(current()) + d + values.length) % values.length;
+    set(values[i]);
+    group.querySelectorAll('button')[i].focus();
+  });
+}
+arrowRadios(document.querySelector('.modes'), MODES, () => S.mode, setMode);
+arrowRadios($('srcGroup'), ['sat', 'g3d'], () => S.src, setSrc);
+amount.addEventListener('input', () => {
+  const v = Number(amount.value);
+  if (S.mode === 'grid') S.span = v; else S[S.mode] = v / 100;
+  if (S.mode === 'swipe') positionSwipe();
+  if (S.mode === 'blink') startBlink();
+  visual3d();
+  amountOut.textContent = amountText();
+  save(); invalidate();
+});
+linesBox.addEventListener('change', () => { S.lines = linesBox.checked; save(); invalidate(); });
+$('zin').addEventListener('click', () => zoomAt(W / 2, H / 2, 1.4));
+$('zout').addEventListener('click', () => zoomAt(W / 2, H / 2, 1 / 1.4));
+$('zfit').addEventListener('click', fit);
+$('bannerDone').addEventListener('click', stopAdjust);
+$('noticeRetry').addEventListener('click', () => {
+  for (const t of [...cache.values()]) if (t.state === ERR) cache.delete(t.k);
+  health.err = 0; health.t0 = performance.now();
+  setTimeout(checkHealth, 8200);
+  noticeEl.hidden = true;
+  invalidate();
+});
+
+$('cards').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const which = b.dataset.w, st = byId(S[which]); if (!st) return;
+  const act = b.dataset.act;
+  if (act === 'move') { if (S.adjust === which) stopAdjust(); else startAdjust(which); return; }
+  if (act === 'level') { if (G.leveling === which) stopLeveling(); else startLeveling(which); return; }
+  if (act === 'remove') { removeCustom(st.id); return; }
+  if (act === 'rot') {
+    const o = S.offsets[st.id] || (S.offsets[st.id] = { du: 0, dv: 0, dr: 0 });
+    o.dr = wrap180((o.dr || 0) + Number(b.dataset.v));
+  } else if (act === 'reset') {
+    delete S.offsets[st.id];
+    delete S.levels[st.id];
+  }
+  updateCards(); apply3dBoth(); updateEarth(); save(); invalidate();
+});
+
+/* ---------- Add any stadium (OpenStreetMap) ---------- */
+function ringsOf(elm) {
+  if (elm.type === 'way' && Array.isArray(elm.geometry)) return [elm.geometry.filter(Boolean)];
+  if (elm.type === 'relation' && Array.isArray(elm.members)) {
+    let m = elm.members.filter(x => Array.isArray(x.geometry) && x.role === 'outer');
+    if (!m.length) m = elm.members.filter(x => Array.isArray(x.geometry));
+    return m.map(x => x.geometry.filter(Boolean));
+  }
+  return [];
+}
+function hull(pts) {
+  pts = pts.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  up.pop(); lo.pop();
+  return lo.concat(up);
+}
+function minRect(h) {   // minimum-area bounding rectangle via rotating edges
+  let best = null;
+  for (let i = 0; i < h.length; i++) {
+    const p = h[i], q = h[(i + 1) % h.length];
+    const ang = Math.atan2(q[1] - p[1], q[0] - p[0]), c = Math.cos(ang), s = Math.sin(ang);
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const r of h) { const u = r[0] * c + r[1] * s, v = -r[0] * s + r[1] * c; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    const area = (u1 - u0) * (v1 - v0);
+    if (!best || area < best.area) { const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2; best = { area, ang, a1: u1 - u0, a2: v1 - v0, cx: cu * c - cv * s, cy: cu * s + cv * c }; }
+  }
+  let L = best.a1, Wd = best.a2, ang = best.ang;
+  if (Wd > L) { [L, Wd] = [Wd, L]; ang += Math.PI / 2; }
+  let brg = (90 - ang / DEG) % 180; if (brg < 0) brg += 180;
+  return { L, W: Wd, brg, cx: best.cx, cy: best.cy };
+}
+function fieldType(r) {
+  if (/cricket|australian/.test(r.sport)) return 'oval';
+  if (/american_football/.test(r.sport)) return 'af';
+  if (/soccer|rugby|gaelic/.test(r.sport)) return 'soc';
+  return r.L / r.W > 1.9 ? 'af' : 'soc';
+}
+function analyze(elements, lat0, lon0) {
+  const kx = mLon(lat0), ky = mLat(lat0), recs = [];
+  for (const elm of elements) {
+    const pts = ringsOf(elm).flat();
+    if (pts.length < 3) continue;
+    const h = hull(pts.map(p => [(p.lon - lon0) * kx, (p.lat - lat0) * ky]));
+    if (h.length < 3) continue;
+    const r = minRect(h), t = elm.tags || {};
+    recs.push({ kind: t.leisure, sport: t.sport || '', L: r.L, W: r.W, brg: r.brg, lat: lat0 + r.cy / ky, lon: lon0 + r.cx / kx, d: Math.hypot(r.cx, r.cy) });
+  }
+  const stad = recs.filter(r => r.kind === 'stadium' && r.L > 120).sort((p, q) => p.d - q.d)[0];
+  const ref = stad || { lat: lat0, lon: lon0 };
+  const dist = r => Math.hypot((r.lon - ref.lon) * kx, (r.lat - ref.lat) * ky);
+  const pitches = recs
+    .filter(r => r.kind === 'pitch' && r.L >= 85 && r.L <= 210 && r.W >= 40 && (!r.sport || /football|soccer|rugby|multi|cricket|australian|gaelic/.test(r.sport)))
+    .map(r => ({ r, dd: dist(r) })).filter(o => o.dd < (stad ? 160 : 260)).sort((p, q) => p.dd - q.dd);
+  if (pitches.length) {
+    const p = pitches[0].r, f = fieldType(p);
+    return { lat: p.lat, lon: p.lon, brg: Math.round(p.brg * 10) / 10, f, fl: f === 'oval' ? p.L : undefined, fw: f === 'oval' ? p.W : undefined, src: 'cpitch' };
+  }
+  if (stad) return { lat: stad.lat, lon: stad.lon, brg: Math.round(stad.brg * 10) / 10, f: 'none', src: 'cstadium' };
+  return { lat: lat0, lon: lon0, brg: 0, f: 'none', src: 'cpoint' };
+}
+async function overpass(q) {
+  let last = new Error('no response');
+  for (const url of ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']) {
+    try {
+      const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }) });
+      if (r.ok) return await r.json();
+      last = new Error('HTTP ' + r.status);
+    } catch (err) { last = err; }
+  }
+  throw last;
+}
+
+const addForm = $('addForm'), addQ = $('addQ'), addResults = $('addResults'), addMsg = $('addMsg');
+addForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = addQ.value.trim(); if (!q) return;
+  addResults.textContent = ''; addMsg.textContent = 'Searching OpenStreetMap…';
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=' + encodeURIComponent(q));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const list = await r.json();
+    if (!Array.isArray(list) || !list.length) { addMsg.textContent = `Nothing found for “${q}”. Try the stadium name plus its city.`; return; }
+    list.sort((p, q2) => (q2.type === 'stadium') - (p.type === 'stadium'));
+    addMsg.textContent = 'Pick the right one:';
+    for (const it of list) {
+      const li = el('li'), btn = el('button'); btn.type = 'button';
+      const name = it.name || String(it.display_name || '').split(',')[0];
+      btn.append(el('span', null, name), el('small', null, String(it.display_name || '').split(',').slice(1).join(',').trim()));
+      btn.addEventListener('click', () => addFromResult(it, name));
+      li.append(btn); addResults.append(li);
+    }
+  } catch (_) {
+    addMsg.textContent = 'Couldn’t reach OpenStreetMap search. Check your connection and try again.';
+  }
+});
+async function addFromResult(it, name) {
+  const lat = Number(it.lat), lon = Number(it.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  addResults.textContent = ''; addMsg.textContent = `Finding the field at ${name}…`;
+  let fitInfo, reached = true;
+  try {
+    const data = await overpass(`[out:json][timeout:25];(nwr(around:500,${lat},${lon})["leisure"="pitch"];nwr(around:500,${lat},${lon})["leisure"="stadium"];);out geom;`);
+    fitInfo = analyze(Array.isArray(data.elements) ? data.elements : [], lat, lon);
+  } catch (_) {
+    reached = false;
+    fitInfo = { lat, lon, brg: 0, f: 'none', src: 'cpoint' };
+  }
+  const a = it.address || {};
+  const city = [a.city || a.town || a.village || a.municipality || a.county, a.state || a.country].filter(Boolean).join(', ');
+  const id = 'c-' + String(it.osm_type || 'x')[0] + String(it.osm_id || Math.round(lat * 1e5) + '_' + Math.round(lon * 1e5));
+  const st = { id, name, city, g: 'custom', lat: fitInfo.lat, lon: fitInfo.lon, brg: fitInfo.brg, f: fitInfo.f, fl: fitInfo.fl, fw: fitInfo.fw, src: fitInfo.src };
+  S.custom = S.custom.filter(c => c.id !== id).concat(st);
+  ELEV.delete(id);
+  reindex(); fillSelects();
+  if (gridBuilt) buildGrid();
+  if (S.a === id) S.a = S.b;
+  setLayer('b', id);
+  if (S.mode === 'grid') setMode(S.last);
+  ensureElevations();
+  addMsg.textContent = reached
+    ? `Added ${name} as stadium B. ${NOTES[fitInfo.src]}`
+    : `Added ${name} at the search result, but OpenStreetMap’s field data didn’t respond. Use Fine-tune to line it up.`;
+}
+function removeCustom(id) {
+  S.custom = S.custom.filter(c => c.id !== id);
+  delete S.offsets[id];
+  ELEV.delete(id);
+  reindex();
+  const fallback = other => (other === 'michigan' ? 'maracana' : 'michigan');
+  if (S.a === id) S.a = fallback(S.b);
+  if (S.b === id) S.b = fallback(S.a);
+  if (S.adjust) stopAdjust();
+  fillSelects();
+  if (gridBuilt) buildGrid();
+  setLayer('a', S.a);
+}
+
+/* ---------- Start ---------- */
+G.key = readKey();
+fillSelects();
+linesBox.checked = S.lines;
+positionSwipe();
+for (const b of srcBtns) b.setAttribute('aria-checked', String(b.dataset.src === S.src));
+updateCards();
+updateEarth();
+setMode(S.mode);
+ensureElevations();
+new ResizeObserver(resize).observe(stage);
+})();
+</script>
+</body>
+</html>
