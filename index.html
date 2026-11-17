@@ -243,8 +243,8 @@ input[type=range]{width:100%;margin:0;accent-color:var(--chalk)}
       <article class="card" aria-label="Stadium A">
         <div class="card-head"><span class="tag a">A</span><div><h2 id="nameA"></h2><p class="meta" id="metaA"></p></div></div>
         <dl class="stats">
-          <div><dt>Listed capacity</dt><dd id="capA"></dd></div>
-          <div><dt>Field runs</dt><dd id="axisA"></dd></div>
+          <div><dt id="capLA">Listed capacity</dt><dd id="capA"></dd></div>
+          <div><dt id="axisLA">Field runs</dt><dd id="axisA"></dd></div>
         </dl>
         <p class="fact" id="factA"></p>
         <p class="src" id="srcA"></p>
@@ -266,8 +266,8 @@ input[type=range]{width:100%;margin:0;accent-color:var(--chalk)}
       <article class="card" aria-label="Stadium B">
         <div class="card-head"><span class="tag b">B</span><div><h2 id="nameB"></h2><p class="meta" id="metaB"></p></div></div>
         <dl class="stats">
-          <div><dt>Listed capacity</dt><dd id="capB"></dd></div>
-          <div><dt>Field runs</dt><dd id="axisB"></dd></div>
+          <div><dt id="capLB">Listed capacity</dt><dd id="capB"></dd></div>
+          <div><dt id="axisLB">Field runs</dt><dd id="axisB"></dd></div>
         </dl>
         <p class="fact" id="factB"></p>
         <p class="src" id="srcB"></p>
@@ -299,7 +299,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--chalk)}
       <p class="hint" id="addMsg" role="status"></p>
     </details>
 
-    <footer class="credit">Satellite: Esri World Imagery (Esri, Maxar, Earthstar Geographics, and the GIS User Community). 3D: Google. Field outlines: © OpenStreetMap contributors. Ground heights: Copernicus DEM via Open-Meteo. Capacities are listed figures and shift with renovations.</footer>
+    <footer class="credit">Satellite: Esri World Imagery (Esri, Maxar, Earthstar Geographics, and the GIS User Community). 3D: Google. Field outlines: © OpenStreetMap contributors. Ground heights: Copernicus DEM via Open-Meteo. Capacities are listed figures and shift with renovations; ancient ones are estimates.</footer>
   </aside>
 
   <main class="stage" id="stage">
@@ -398,6 +398,8 @@ const GROUPS = [
   ['nfl', 'NFL'],
   ['world', 'World football'],
   ['other', 'Other giants'],
+  ['tracks', 'Racetracks'],
+  ['ancient', 'Ancient arenas'],
   ['custom', 'Your stadiums'],
 ];
 
@@ -408,6 +410,10 @@ const NOTES = {
   oval: 'Lined up on the long axis of the oval.',
   round: 'The ground is nearly round, so the direction is approximate.',
   arena: 'Lined up on the stadium outline.',
+  track: 'The outline is the racing line down the middle of the track, from OpenStreetMap, lined up on the track’s long axis.',
+  park: 'The outline is the park that fills the circus’s valley today, from OpenStreetMap. The curved end is where the seats wrapped around.',
+  floor: 'Lined up on the arena floor in Google’s 3D model. The outline is the floor’s original 83 by 48 m.',
+  ring: 'The ring is round, so its direction doesn’t matter. The outline is the sand, from OpenStreetMap.',
   cpitch: 'Lined up on the field outline from OpenStreetMap.',
   cstadium: 'OpenStreetMap has no field outline here, so this is lined up on the stadium outline.',
   cpoint: 'OpenStreetMap has no field or stadium outline here. Use Fine-tune to line it up.',
@@ -417,7 +423,10 @@ const NOTES = {
    field polygons, measured with a minimum-area bounding rectangle. f: af = American football,
    soc = association football, oval = cricket/Aussie rules, arena = no standard field.
    el: rough field height above sea level in meters, used until Open-Meteo answers.
-   fz: field height measured in Google's 3D model (for roofed stadiums: ground beside it, less any published field depth). */
+   fz: field height measured in Google's 3D model (for roofed stadiums: ground beside it, less any published field depth).
+   Venues that aren't stadiums: f: 'shape' draws the closed outline in shape, as [along, right] meters from the
+   center, where along points toward brg. inner: a field drawn dashed inside it. ext: [along, across] meters the
+   view should take in. capLabel, runs, since and note replace the card's usual wording. */
 const STADIUMS = [
   { id: 'michigan', name: 'Michigan Stadium', city: 'Ann Arbor, MI', g: 'college', cap: 107601, open: 1927, lat: 42.26588, lon: -83.74873, brg: 179.2, f: 'af', src: 'pitch', el: 245, fz: 255.7, fact: 'About three-quarters of the bowl sits below street level.' },
   { id: 'beaver', name: 'Beaver Stadium', city: 'State College, PA', g: 'college', cap: 106572, open: 1960, lat: 40.81219, lon: -77.85611, brg: 135.0, f: 'af', src: 'pitch', el: 355, fz: 352.0 },
@@ -460,6 +469,20 @@ const STADIUMS = [
   { id: 'strahov', name: 'Great Strahov Stadium', city: 'Prague', g: 'other', cap: 220000, approx: true, open: 1926, lat: 50.08049, lon: 14.38774, brg: 179.0, f: 'arena', src: 'arena', el: 330, fz: 332.4, fact: 'Built for mass gymnastics displays; that capacity is historic. Its floor now fits several training pitches.' },
   { id: 'modi', name: 'Narendra Modi Stadium', city: 'Ahmedabad', g: 'other', cap: 132000, approx: true, open: 1982, lat: 23.09177, lon: 72.59734, brg: 0.0, f: 'oval', fl: 150.5, fw: 149.2, src: 'round', el: 50, fz: 84.4, fact: 'A cricket ground with the largest capacity of any stadium.' },
   { id: 'mcg', name: 'Melbourne Cricket Ground', city: 'Melbourne', g: 'other', cap: 100024, open: 1853, lat: -37.81999, lon: 144.98345, brg: 76.3, f: 'oval', fl: 173.6, fw: 147.6, src: 'oval', el: 15, fz: 7.8, fact: 'Its record crowd is 121,696, at the 1970 Aussie rules grand final.' },
+  { id: 'plazamexico', name: 'Plaza México', city: 'Mexico City', g: 'other', cap: 41262, open: 1946, lat: 19.38298, lon: -99.18009, brg: 0.0, f: 'oval', fl: 43.5, fw: 43.3, src: 'ring', runs: 'Lined up', el: 2238, fz: 2238.8, fact: 'The world’s largest bullring.' },
+
+  { id: 'indy', name: 'Indianapolis Motor Speedway', city: 'Speedway, IN', g: 'tracks', cap: 232000, capLabel: 'Permanent seats', open: 1909, lat: 39.79502, lon: -86.23464, brg: 179.3, f: 'shape', ext: [1680, 840], src: 'track', runs: 'Track runs', el: 222, fz: 222.8, fact: 'Its 253-acre infield could hold Churchill Downs, the Rose Bowl, Yankee Stadium, the Colosseum and Vatican City at once.',
+    shape: [[471.8,364],[527.9,362.1],[579.9,353.3],[614.4,340.8],[650.8,319],[668,306.2],[697.9,278.4],[720.6,249.6],[742.2,211.4],[757.3,171.6],[764.3,128.4],[765.2,-10.5],[765.3,-116.9],[758.2,-167],[745.1,-205.4],[734.2,-227.9],[715.7,-255.6],[685.3,-290.2],[662.6,-310.9],[644.1,-323.6],[627.1,-334.3],[577.7,-354],[551.6,-360.4],[523.6,-363],[-497.4,-362.2],[-554.4,-358.1],[-599,-345.6],[-628.8,-331.9],[-665.2,-307.3],[-691.1,-284],[-723.8,-244.1],[-741,-215.3],[-752.9,-186.4],[-760.6,-154.9],[-764.3,-119.2],[-765.4,116.4],[-759.3,164.3],[-747.7,199],[-722.4,248.1],[-700.8,275.8],[-680,297.4],[-638.6,326.9],[-618,337.9],[-579.9,352.8],[-525,363.1]] },
+  { id: 'churchill', name: 'Churchill Downs', city: 'Louisville, KY', g: 'tracks', cap: 170513, capLabel: 'Record crowd', open: 1875, lat: 38.20294, lon: -85.77001, brg: 58.6, f: 'shape', ext: [780, 420], src: 'track', runs: 'Track runs', el: 136, fz: 136.0, fact: 'Home of the Kentucky Derby since 1875. The record crowd came for the 2015 Derby.',
+    shape: [[-166,-140.3],[-203.5,-139.1],[-231.4,-136],[-256.9,-128.2],[-279,-116],[-297.5,-101.5],[-314,-83.2],[-328.6,-60.5],[-337.3,-38.9],[-340.2,-14.8],[-337.9,17.7],[-331.6,45],[-318.5,71.5],[-289.3,104.7],[-253.9,129.2],[-221.5,140.2],[168.5,139.1],[218.1,137.7],[241.2,132.2],[267.6,121.8],[291.6,105.6],[309.5,86.6],[325.7,62.8],[336.6,32.8],[340.2,1.5],[337,-29.7],[328.7,-58.1],[309.3,-88.8],[285.7,-110.4],[255.9,-128.4],[226.4,-137],[191,-139.4]] },
+  { id: 'bristol', name: 'Bristol Motor Speedway', city: 'Bristol, TN', g: 'tracks', cap: 146000, open: 1961, lat: 36.51564, lon: -82.25696, brg: 152.3, f: 'shape', inner: 'af', ext: [560, 460], src: 'track', note: 'The outline is the racing line from OpenStreetMap. Dashed: about where the 2016 football field sat.', runs: 'Track runs', el: 442, fz: 442.0, fact: 'The 2016 Battle at Bristol put a football field in the infield and drew 156,990, college football’s record crowd. MLB’s 2025 Speedway Classic drew 91,032.',
+    shape: [[163.6,10.6],[164.7,0.1],[163.4,-17],[156.8,-38],[144.5,-56.4],[136.5,-63.5],[121.8,-74],[111.8,-78.1],[90.8,-83.1],[72.1,-84],[-75,-77.4],[-98.8,-74.7],[-109,-72.3],[-117.2,-69.7],[-130.7,-60.8],[-147,-44.8],[-157.5,-27.9],[-161.4,-19],[-163.8,-9.4],[-164.6,2.9],[-164.1,11.3],[-162.6,21.9],[-159.6,32.5],[-155.2,42.7],[-144.5,57.4],[-136.6,64.8],[-120.3,75.5],[-104.1,81.1],[-86.2,84],[81.8,84.1],[92,83.3],[103.2,81.1],[124.7,71.6],[133.9,65],[144.1,55],[151.5,45.6],[157.1,35],[161.4,23.7]] },
+  { id: 'daytona', name: 'Daytona International Speedway', city: 'Daytona Beach, FL', g: 'tracks', cap: 101500, open: 1959, lat: 29.18557, lon: -81.06948, brg: 36.1, f: 'shape', ext: [1760, 900], src: 'track', runs: 'Track runs', el: 8, fz: 7.8, fact: 'The turns are banked 31 degrees, and Lake Lloyd fills part of the infield.',
+    shape: [[-283.2,400.3],[481.1,400.3],[566.7,391],[611,377.9],[647.3,362.7],[681.4,342.9],[712,319.3],[760,264.4],[790.3,205.2],[804.5,162.6],[810.9,121.3],[811.2,71.5],[802.3,16],[788.8,-23.2],[769.2,-62.1],[739.6,-102.6],[705.6,-135.6],[634.8,-183],[548.8,-223.1],[477.8,-251.9],[158.4,-376.7],[104,-390.1],[52.6,-397.5],[10.7,-400.2],[-42.7,-398.6],[-117.9,-387.1],[-144.5,-379.8],[-302.4,-324.3],[-570.6,-215.7],[-641.6,-180.6],[-672.1,-162.5],[-712.5,-132.4],[-752,-91.3],[-782,-42.1],[-798.3,1],[-810.4,62.9],[-811.6,105.7],[-805.8,152.5],[-788.2,210],[-767.8,251],[-741.8,286.8],[-711.2,318],[-672.8,347.4],[-648.8,361.4],[-609.7,378.2],[-573.6,388.3],[-496.9,399]] },
+
+  { id: 'circus', name: 'Circus Maximus', city: 'Rome', g: 'ancient', cap: 150000, approx: true, capLabel: 'Estimated capacity', since: 'in use from the 6th century BC', lat: 41.88588, lon: 12.48570, brg: 126.2, f: 'shape', ext: [680, 260], src: 'park', runs: 'Track runs', el: 18, fz: 17.7, fact: 'Pliny put its crowd at 250,000; most modern estimates are nearer 150,000. Chariots raced here for about a thousand years.',
+    shape: [[-100.1,64.8],[-168.4,62.3],[-298.5,38.8],[-290,-74.7],[132.8,-74.7],[267.2,-74.7],[275.4,-69.1],[281.7,-62.3],[291.6,-46.6],[294.8,-37.6],[298.4,-14.9],[296.9,8.5],[294.6,19],[291.3,29.3],[284.5,39.4],[266.8,58.1],[246.8,68.6],[226.3,72.9],[190.8,72.1],[129.9,74.7],[9.4,70.5]] },
+  { id: 'colosseum', name: 'Colosseum', city: 'Rome', g: 'ancient', cap: 50000, approx: true, capLabel: 'Estimated capacity', open: 80, since: 'opened AD 80', lat: 41.89020, lon: 12.49233, brg: 108.4, f: 'oval', fl: 83, fw: 48, src: 'floor', runs: 'Arena runs', el: 21, fz: 21.5, fact: 'Its arena floor is a little smaller than a football field between the goal lines. Crowd estimates run from 50,000 to 80,000.' },
 ];
 
 /* ---------- Helpers ---------- */
@@ -499,7 +522,7 @@ function reindex() { INDEX = new Map(all().map(s => [s.id, s])); }
     }
   }
   for (const k of ['swipe', 'fade', 'blink']) if (Number.isFinite(s[k])) S[k] = clamp(s[k], 0, 1);
-  if (Number.isFinite(s.span)) S.span = clamp(Math.round(s.span / 10) * 10, 250, 1000);
+  if (Number.isFinite(s.span)) S.span = clamp(Math.round(s.span / 10) * 10, 250, 2000);
   if (typeof s.lines === 'boolean') S.lines = s.lines;
   if (byId(s.a)) S.a = s.a;
   if (byId(s.b)) S.b = s.b;
@@ -688,8 +711,7 @@ function drawLayer(c2d, dpr, st, v, clip) {
 
 function drawField(c2d, dpr, st, g, v, color) {
   if (!st || st.f === 'arena' || st.f === 'none' || !st.f) return;
-  const [L, Wd] = st.f === 'af' ? AF_FIELD : st.f === 'soc' ? SOC_FIELD : [st.fl || 160, st.fw || 140];
-  const p = v.ppm, hl = L * p / 2, hw = Wd * p / 2;
+  const p = v.ppm;
   c2d.save();
   c2d.setTransform(dpr, 0, 0, dpr, 0, 0);
   c2d.translate(g.ax, g.ay);
@@ -697,20 +719,30 @@ function drawField(c2d, dpr, st, g, v, color) {
   c2d.lineWidth = 1.6; c2d.strokeStyle = color;
   c2d.shadowColor = 'rgba(0,0,0,.7)'; c2d.shadowBlur = 3;
   c2d.beginPath();
-  if (st.f === 'oval') {
-    c2d.ellipse(0, 0, hl, hw, 0, 0, Math.PI * 2);
+  if (st.f === 'shape' && Array.isArray(st.shape)) {
+    // The imagery turns its bearing toward +x, or toward -x when flipped; the outline turns with it.
+    const k = g.flip * p;
+    st.shape.forEach(([u, w], i) => { if (i) c2d.lineTo(u * k, w * k); else c2d.moveTo(u * k, w * k); });
+    c2d.closePath();
   } else {
-    c2d.rect(-hl, -hw, 2 * hl, 2 * hw);
-    c2d.moveTo(0, -hw); c2d.lineTo(0, hw);
-    if (st.f === 'af') {
-      const gl = 45.72 * p;   // goal lines, 50 yd from midfield
-      c2d.moveTo(-gl, -hw); c2d.lineTo(-gl, hw); c2d.moveTo(gl, -hw); c2d.lineTo(gl, hw);
-    } else {
-      c2d.moveTo(9.15 * p, 0); c2d.arc(0, 0, 9.15 * p, 0, Math.PI * 2);
-    }
+    fieldPath(c2d, st.f, st.f === 'oval' ? [st.fl || 160, st.fw || 140] : null, p);
   }
   c2d.stroke();
+  if (st.inner) { c2d.beginPath(); fieldPath(c2d, st.inner, null, p); c2d.setLineDash([7, 5]); c2d.stroke(); }
   c2d.restore();
+}
+function fieldPath(c2d, f, dims, p) {
+  const [L, Wd] = dims || (f === 'af' ? AF_FIELD : SOC_FIELD);
+  const hl = L * p / 2, hw = Wd * p / 2;
+  if (f === 'oval') { c2d.ellipse(0, 0, hl, hw, 0, 0, Math.PI * 2); return; }
+  c2d.rect(-hl, -hw, 2 * hl, 2 * hw);
+  c2d.moveTo(0, -hw); c2d.lineTo(0, hw);
+  if (f === 'af') {
+    const gl = 45.72 * p;   // goal lines, 50 yd from midfield
+    c2d.moveTo(-gl, -hw); c2d.lineTo(-gl, hw); c2d.moveTo(gl, -hw); c2d.lineTo(gl, hw);
+  } else {
+    c2d.moveTo(9.15 * p, 0); c2d.arc(0, 0, 9.15 * p, 0, Math.PI * 2);
+  }
 }
 
 /* ---------- Rendering ---------- */
@@ -1109,7 +1141,8 @@ setupForget.addEventListener('click', forgetKey);
 setupDismiss.addEventListener('click', () => { G.dismissed = true; refreshStage(); });
 camRow.addEventListener('click', e => {
   const b = e.target.closest('[data-cam]'); if (!b) return;
-  S.cam = { ...PRESETS[b.dataset.cam] };
+  const P = PRESETS[b.dataset.cam];
+  S.cam = { ...P, range: Math.round(P.range * pairScale()) };
   G.pan = { along: 0, cross: 0, dz: 0 };
   apply3dBoth(); updateEarth(); save();
 });
@@ -1187,11 +1220,13 @@ function fillCard(which) {
   const st = byId(S[which]), U = which.toUpperCase();
   if (!st) return;
   $('name' + U).textContent = st.name;
-  $('meta' + U).textContent = [st.city, st.open ? 'opened ' + st.open : ''].filter(Boolean).join(' · ');
+  $('meta' + U).textContent = [st.city, st.since || (st.open ? 'opened ' + st.open : '')].filter(Boolean).join(' · ');
+  $('capL' + U).textContent = st.capLabel || 'Listed capacity';
   $('cap' + U).textContent = capText(st);
+  $('axisL' + U).textContent = st.runs || 'Field runs';
   $('axis' + U).textContent = axisText(st.brg + ((S.offsets[st.id] || ZERO).dr || 0));
   const fact = $('fact' + U); fact.textContent = st.fact || ''; fact.hidden = !st.fact;
-  $('src' + U).textContent = NOTES[st.src] || '';
+  $('src' + U).textContent = st.note || NOTES[st.src] || '';
   $('read' + U).textContent = tuneText(st);
   $('remove' + U).hidden = st.g !== 'custom';
   const mv = document.querySelector(`.pill[data-act="move"][data-w="${which}"]`);
@@ -1216,6 +1251,7 @@ function setLayer(which, id) {
   S[which] = id;
   if (G.leveling) stopLeveling();
   selA.value = S.a; selB.value = S.b;
+  rescale();
   updateCards(); updateChips(); markGrid();
   G.pan = { along: 0, cross: 0, dz: 0 };
   apply3dBoth(); describe3d(); updateEarth();
@@ -1241,7 +1277,7 @@ function amountText() {
 }
 function configureAmount() {
   if (S.mode === 'grid') {
-    amount.min = 250; amount.max = 1000; amount.step = 10; amount.value = S.span;
+    amount.min = 250; amount.max = 2000; amount.step = 10; amount.value = S.span;
     amountLabel.textContent = 'Frame width';
   } else {
     amount.min = 0; amount.max = 100; amount.step = 1; amount.value = Math.round(S[S.mode] * 100);
@@ -1318,7 +1354,28 @@ function stopAdjust() {
 }
 
 /* ---------- View navigation ---------- */
-function fit() { S.ppm = Math.min(W, H) / FIT_SPAN; S.pu = 0; S.pv = 0; invalidate(); }
+/* Racetracks need more ground than a stadium, so the view fits whichever of A and B is bigger. */
+function fitPPM(A, B) {
+  let p = Math.min(W, H) / FIT_SPAN;
+  const tall = Math.max(60, H - 170), wide = Math.max(60, W - 40);   // keep clear of the name chips, scale and zoom buttons
+  const along = alpha === 0 ? wide : tall, across = alpha === 0 ? tall : wide;
+  for (const st of [A, B]) if (st && st.ext) p = Math.min(p, along / st.ext[0], across / st.ext[1]);
+  return p;
+}
+/* How much farther out this pair needs to be than two ordinary stadiums (1 for those). */
+function pairScale() { return W && H ? (Math.min(W, H) / FIT_SPAN) / fitPPM(byId(S.a), byId(S.b)) : 1; }
+let pairK = 0;
+function fit() { S.ppm = clamp(fitPPM(byId(S.a), byId(S.b)), minP(), maxP()); S.pu = 0; S.pv = 0; pairK = pairScale(); invalidate(); }
+/* After A or B changes, keep the same framing relative to the bigger venue, in 2D and in Google 3D. */
+function rescale() {
+  const k = pairScale();
+  if (pairK && Math.abs(k / pairK - 1) > 1e-3) {
+    const r = k / pairK;
+    S.ppm = clamp(S.ppm / r, minP(), maxP()); S.pu *= r; S.pv *= r;
+    S.cam = { ...S.cam, range: clamp(S.cam.range * r, 50, 20000) };
+  }
+  pairK = k;
+}
 function panBy(dx, dy) {
   const a = alpha * DEG, ca = Math.cos(a), sa = Math.sin(a);
   S.pu = clamp(S.pu - (dx * ca + dy * sa) / S.ppm, -4000, 4000);
@@ -1350,7 +1407,7 @@ function resize() {
   W = nw; H = nh; DPR = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   alpha = W >= H * 0.9 ? 0 : -90;
-  if (first || !S.ppm) fit(); else S.ppm = clamp(S.ppm, minP(), maxP());
+  if (first || !S.ppm) fit(); else { S.ppm = clamp(S.ppm, minP(), maxP()); pairK = pairScale(); }
   invalidate();
 }
 
