@@ -1,0 +1,33 @@
+# Builds the lidar height files in models/ (see tools/build_lidar.py) and commits them back to the branch.
+# GitHub's runners can reach the USGS lidar on AWS; run it when the venue list or the builder changes.
+name: Build lidar models
+on:
+  push:
+    paths: ['tools/build_lidar.py', 'tools/lidar_venues.json', '.github/workflows/lidar.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy scipy 'laspy[lazrs]'
+      - name: Build
+        run: |
+          mkdir -p models
+          set -o pipefail
+          python tools/build_lidar.py tools/lidar_venues.json models 2>&1 | tee models/build.log
+      - name: Commit models
+        if: always()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add models
+          git diff --cached --quiet || git commit -m 'Build lidar models'
+          git push
+          if [ "$GITHUB_REF_NAME" = main ]; then git push origin --delete lidar-probe lidar-preview || true; fi

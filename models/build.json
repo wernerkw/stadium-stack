@@ -1,0 +1,15 @@
+{
+ "bristol": {
+  "empty_core": 0.0225,
+  "veg_core": 0.0434,
+  "floor": 442.79,
+  "dropped": 508,
+  "infield": 40912,
+  "core_min": 435.06,
+  "core_max": 521.78,
+  "outer_min": 434.49,
+  "outer_max": 612.46,
+  "bytes": 380427,
+  "seconds": 10.1
+ }
+}
