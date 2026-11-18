@@ -167,12 +167,10 @@ def build(venue, cfg, outdir):
         ok = (i >= 0) & (j >= 0) & (i < w) & (j < w)
         return j * w + i, ok
 
+    keys = sorted(want, key=lambda s: tuple(map(int, s.split('-'))))   # fixed order, so rebuilds match byte for byte
     with cf.ThreadPoolExecutor(8) as pool:
-        futs = {pool.submit(ept.points, key): key for key in want}
-        for fut in cf.as_completed(futs):
-            key = futs[fut]
+        for key, (x, y, z, mul) in zip(keys, pool.map(ept.points, keys)):
             depth = int(key.split('-')[0])
-            x, y, z, mul = fut.result()
             e, n = (x - X0) / k, (y - Y0) / k
             if depth <= core['depth']:
                 idx, ok = cells(e, n, core['half'], core['res'], cw)
@@ -261,8 +259,8 @@ def build(venue, cfg, outdir):
     out.write_bytes(b'SSL1' + struct.pack('<I', len(head)) + head + b''.join(blocks))
     stats.update(core_min=round(float(cz.min()), 2), core_max=round(float(cz.max()), 2),
                  outer_min=round(float(oz.min()), 2), outer_max=round(float(oz.max()), 2),
-                 bytes=out.stat().st_size, seconds=round(time.time() - t0, 1))
-    print(f'{venue}: wrote {out} {json.dumps(stats)}', flush=True)
+                 bytes=out.stat().st_size)
+    print(f'{venue}: wrote {out} in {time.time() - t0:.1f} s {json.dumps(stats)}', flush=True)
     return stats
 
 
