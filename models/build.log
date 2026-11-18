@@ -1,2 +1,2 @@
 bristol: 67 nodes, 6,357,430 points
-bristol: wrote models/bristol.lidar {"empty_core": 0.0225, "veg_core": 0.0434, "floor": 442.79, "dropped": 510, "infield": 40912, "core_min": 435.06, "core_max": 521.78, "outer_min": 434.49, "outer_max": 612.46, "bytes": 380417, "seconds": 3.6}
+bristol: wrote models/bristol.lidar in 10.2 s {"empty_core": 0.0225, "veg_core": 0.0434, "floor": 442.79, "dropped": 510, "infield": 40912, "core_min": 435.06, "core_max": 521.78, "outer_min": 434.49, "outer_max": 612.46, "bytes": 380425}
